@@ -237,6 +237,48 @@
     margin:0;
   }
 
+  .fx-rack{display:flex; gap:10px; flex-wrap:wrap;}
+  .fx-unit{
+    flex:1 1 92px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    padding:10px 8px 12px;
+    background:var(--panel);
+    border:1px solid var(--groove);
+    border-radius:10px;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.06);
+  }
+  .fx-head{display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;}
+  .fx-unit .knob-row{flex-direction:column; align-items:center; gap:12px;}
+  .fx-unit .knob-row{transition:opacity .15s, filter .15s;}
+  .fx-unit.is-off .knob-row{opacity:.42; filter:grayscale(.7);}
+  .fx-unit.is-off .fx-sub{opacity:.6;}
+
+  .fx-switch{position:relative; display:inline-flex; cursor:pointer;}
+  .fx-switch input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer;}
+  .fx-track{
+    width:32px; height:18px; border-radius:999px;
+    background:var(--groove-dark);
+    box-shadow:inset 0 1px 2px var(--shadow);
+    position:relative;
+    transition:background .15s;
+  }
+  .fx-track::after{
+    content:''; position:absolute; top:2px; left:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--panel-raised);
+    box-shadow:0 1px 2px var(--shadow);
+    transition:transform .15s;
+  }
+  .fx-switch input:checked + .fx-track{background:var(--accent);}
+  .fx-switch input:checked + .fx-track::after{transform:translateX(14px);}
+  .fx-switch input:focus-visible + .fx-track{outline:2px solid var(--focus); outline-offset:2px;}
+  @media (prefers-reduced-motion:reduce){
+    .fx-track, .fx-track::after, .fx-unit .knob-row{transition:none;}
+  }
+
   .module--full{flex:1 1 100%;}
   .preset-bar{display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 22px;}
   .preset-group{display:flex; flex-direction:column; gap:6px;}
@@ -436,10 +478,22 @@
 
     <section class="module module--wide" style="--accent:var(--lavender)">
       <h2 class="module-title">Effects</h2>
-      <p class="fx-sub">Delay</p>
-      <div class="knob-row" id="delay-knobs"></div>
-      <p class="fx-sub">Reverb</p>
-      <div class="knob-row" id="reverb-knobs"></div>
+      <div class="fx-rack">
+        <div class="fx-unit is-off" data-fx="delay">
+          <div class="fx-head">
+            <span class="fx-sub" id="fx-delay-label">Delay</span>
+            <label class="fx-switch"><input type="checkbox" id="fx-delay-on" role="switch" aria-labelledby="fx-delay-label"><span class="fx-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="knob-row" id="delay-knobs"></div>
+        </div>
+        <div class="fx-unit is-off" data-fx="reverb">
+          <div class="fx-head">
+            <span class="fx-sub" id="fx-reverb-label">Reverb</span>
+            <label class="fx-switch"><input type="checkbox" id="fx-reverb-on" role="switch" aria-labelledby="fx-reverb-label"><span class="fx-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="knob-row" id="reverb-knobs"></div>
+        </div>
+      </div>
     </section>
 
     <section class="module" style="--accent:var(--mustard)">
@@ -471,6 +525,8 @@
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000
   };
   var audioCtx = null, masterFilter = null, masterGain = null, analyser = null, scopeStarted = false;
+  // Effect units can be switched off without losing their knob settings.
+  var fxOn = { delay: false, reverb: false };
   var delayNode = null, delayFeedbackGain = null, delayWetGain = null;
   var convolver = null, reverbToneFilter = null, reverbWetGain = null, reverbRegenTimer = null;
   var activeVoices = new Map();
@@ -527,9 +583,9 @@
     delayNode = audioCtx.createDelay(1.0);
     delayNode.delayTime.value = params.delayTime / 1000;
     delayFeedbackGain = audioCtx.createGain();
-    delayFeedbackGain.gain.value = params.delayFeedback / 100;
+    delayFeedbackGain.gain.value = fxOn.delay ? params.delayFeedback / 100 : 0;
     delayWetGain = audioCtx.createGain();
-    delayWetGain.gain.value = params.delayMix / 100;
+    delayWetGain.gain.value = fxOn.delay ? params.delayMix / 100 : 0;
     masterFilter.connect(delayNode);
     delayNode.connect(delayFeedbackGain);
     delayFeedbackGain.connect(delayNode);
@@ -543,7 +599,7 @@
     reverbToneFilter.type = 'lowpass';
     reverbToneFilter.frequency.value = params.reverbTone;
     reverbWetGain = audioCtx.createGain();
-    reverbWetGain.gain.value = params.reverbMix / 100;
+    reverbWetGain.gain.value = fxOn.reverb ? params.reverbMix / 100 : 0;
     masterFilter.connect(convolver);
     convolver.connect(reverbToneFilter);
     reverbToneFilter.connect(reverbWetGain);
@@ -775,11 +831,11 @@
     { id:'delayTime', module:'delay-knobs', label:'TIME', min:20, max:800, def:220, unit:'ms',
       onInput:function(v){ params.delayTime = v; if (delayNode) delayNode.delayTime.setTargetAtTime(v/1000, audioCtx.currentTime, 0.01); } },
     { id:'delayFeedback', module:'delay-knobs', label:'FEEDBK', min:0, max:85, def:30, unit:'%',
-      onInput:function(v){ params.delayFeedback = v; if (delayFeedbackGain) delayFeedbackGain.gain.setTargetAtTime(v/100, audioCtx.currentTime, 0.01); } },
+      onInput:function(v){ params.delayFeedback = v; updateFxGains(); } },
     { id:'delayMix', module:'delay-knobs', label:'MIX', min:0, max:100, def:0, unit:'%',
-      onInput:function(v){ params.delayMix = v; if (delayWetGain) delayWetGain.gain.setTargetAtTime(v/100, audioCtx.currentTime, 0.01); } },
+      onInput:function(v){ params.delayMix = v; updateFxGains(); } },
     { id:'reverbMix', module:'reverb-knobs', label:'MIX', min:0, max:100, def:0, unit:'%',
-      onInput:function(v){ params.reverbMix = v; if (reverbWetGain) reverbWetGain.gain.setTargetAtTime(v/100, audioCtx.currentTime, 0.01); } },
+      onInput:function(v){ params.reverbMix = v; updateFxGains(); } },
     { id:'reverbSize', module:'reverb-knobs', label:'SIZE', min:0.3, max:6, def:2.2, unit:'s',
       onInput:function(v){
         params.reverbSize = v;
@@ -804,6 +860,30 @@
     });
   });
 
+  // ---------- effect on/off switches ----------
+  // Off mutes the unit's wet signal (and the delay's feedback, so an old
+  // tail doesn't resurface when it's switched back on).
+  function updateFxGains(){
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime;
+    delayWetGain.gain.setTargetAtTime(fxOn.delay ? params.delayMix / 100 : 0, t, 0.01);
+    delayFeedbackGain.gain.setTargetAtTime(fxOn.delay ? params.delayFeedback / 100 : 0, t, 0.01);
+    reverbWetGain.gain.setTargetAtTime(fxOn.reverb ? params.reverbMix / 100 : 0, t, 0.01);
+  }
+
+  function setFx(id, on, fromUser){
+    fxOn[id] = on;
+    document.getElementById('fx-' + id + '-on').checked = on;
+    document.querySelector('.fx-unit[data-fx="' + id + '"]').classList.toggle('is-off', !on);
+    // Switching on with Mix at zero would change nothing audible.
+    if (on && fromUser && knobs.get(id + 'Mix').getValue() === 0) knobs.get(id + 'Mix').setValue(25);
+    updateFxGains();
+  }
+
+  ['delay', 'reverb'].forEach(function(id){
+    document.getElementById('fx-' + id + '-on').addEventListener('change', function(e){ setFx(id, e.target.checked, true); });
+  });
+
   // ---------- presets ----------
   // Factory presets are grouped by type, each with several versions; the
   // USER type holds presets saved from the panel, kept in this browser.
@@ -812,6 +892,8 @@
   function preset(name, wave, values){
     var p = { wave: wave };
     PRESET_KNOBS.forEach(function(key, i){ p[key] = values[i]; });
+    p.delayOn = p.delayMix > 0;
+    p.reverbOn = p.reverbMix > 0;
     return { name: name, params: p };
   }
   //                                      tune sub cutoff reso atk  dec  sus rel   vol  dTime dFb dMix rMix rSize rTone
@@ -885,11 +967,16 @@
         knobs.get(key).setValue(p[key]);
       }
     });
+    // User presets saved before the switches existed: on if the mix is up.
+    setFx('delay', p.delayOn !== undefined ? !!p.delayOn : p.delayMix > 0, false);
+    setFx('reverb', p.reverbOn !== undefined ? !!p.reverbOn : p.reverbMix > 0, false);
   }
 
   function currentSettings(){
     var p = { wave: params.wave };
     PRESET_KNOBS.forEach(function(key){ p[key] = knobs.get(key).getValue(); });
+    p.delayOn = fxOn.delay;
+    p.reverbOn = fxOn.reverb;
     return p;
   }
 
