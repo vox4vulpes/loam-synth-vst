@@ -58,7 +58,11 @@ add_executable(EngineTest
     Source/SynthEngine.cpp
 )
 target_include_directories(EngineTest PRIVATE Source)
-target_compile_definitions(EngineTest PRIVATE JUCE_STANDALONE_APPLICATION=1)
+target_compile_definitions(EngineTest PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+)
 target_link_libraries(EngineTest PRIVATE
     juce::juce_core
     juce::juce_audio_basics
