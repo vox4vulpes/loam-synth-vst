@@ -11,7 +11,7 @@ void SynthEngine::prepare (double newSampleRate, int samplesPerBlock)
     delayLine.setMaximumDelayInSamples ((int) (sampleRate * 1.0) + 4);
     delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 1 });
 
-    reverb.setSampleRate (sampleRate);
+    reverb.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 2 });
     reverb.reset();
 
     reverbScratchL.assign ((size_t) samplesPerBlock, 0.0f);
@@ -211,7 +211,10 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
 
     // Pass 2: reverb runs block-at-a-time, then its wet signal is folded
     // into the output alongside the dry/delay signal already written above.
-    reverb.processStereo (reverbScratchL.data(), reverbScratchR.data(), numSamples);
+    float* reverbChannels[2] = { reverbScratchL.data(), reverbScratchR.data() };
+    juce::dsp::AudioBlock<float> reverbBlock (reverbChannels, 2, (size_t) numSamples);
+    juce::dsp::ProcessContextReplacing<float> reverbContext (reverbBlock);
+    reverb.process (reverbContext);
     for (int i = 0; i < numSamples; ++i)
     {
         left[i] += reverbScratchL[(size_t) i] * reverbWetGain * masterGain;
