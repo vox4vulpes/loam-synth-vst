@@ -414,7 +414,7 @@
       <div class="brand-sub">Polyphonic Voice Synthesizer</div>
     </div>
     <div class="status-group">
-      <div class="readout-window"><span class="readout-label">OCT</span><span class="readout-value" id="oct-readout">4</span></div>
+      <div class="readout-window"><span class="readout-label">OCT</span><span class="readout-value" id="oct-readout">3</span></div>
       <div class="readout-window"><span class="readout-label">NOTE</span><span class="readout-value" id="note-readout">&mdash;</span></div>
       <button id="power" class="power-switch" type="button" aria-pressed="false">
         <span class="led" aria-hidden="true"></span><span>POWER</span>
@@ -511,7 +511,7 @@
     <div class="keyboard-scroll">
       <div class="keyboard" id="keyboard"></div>
     </div>
-    <p class="instructions">Flip the power switch, then play with <kbd>A</kbd>&ndash;<kbd>;</kbd> on your keyboard or click the keys.</p>
+    <p class="instructions">Flip the power switch, then play with <kbd>Z</kbd>&ndash;<kbd>M</kbd> (lower octave) and <kbd>Q</kbd>&ndash;<kbd>P</kbd> (upper octave), sharps on the row above each, or click the keys.</p>
   </footer>
 </div>
 
@@ -531,9 +531,19 @@
   var convolver = null, reverbToneFilter = null, reverbWetGain = null, reverbRegenTimer = null;
   var activeVoices = new Map();
 
-  var KEY_MAP = {a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14,p:15,';':16};
+  // Tracker-style layout over two rows, matched by physical key (e.code) so
+  // it plays the same in any keyboard layout, e.g. Russian.
+  //   Z-row: C3..B3 on Z X C V B N M, sharps on S D G H J
+  //   Q-row: C4..E5 on Q W E R T Y U I O P, sharps on 2 3 5 6 7 9 0
+  var BASE_MIDI = 48;
+  var KEY_MAP = {
+    KeyZ:0, KeyS:1, KeyX:2, KeyD:3, KeyC:4, KeyV:5, KeyG:6, KeyB:7, KeyH:8, KeyN:9, KeyJ:10, KeyM:11,
+    KeyQ:12, Digit2:13, KeyW:14, Digit3:15, KeyE:16, KeyR:17, Digit5:18, KeyT:19, Digit6:20, KeyY:21, Digit7:22, KeyU:23,
+    KeyI:24, Digit9:25, KeyO:26, Digit0:27, KeyP:28
+  };
+  var KEY_RANGE = 28;
   var OFFSET_TO_LETTER = {};
-  Object.keys(KEY_MAP).forEach(function(l){ OFFSET_TO_LETTER[KEY_MAP[l]] = l; });
+  Object.keys(KEY_MAP).forEach(function(code){ OFFSET_TO_LETTER[KEY_MAP[code]] = code.replace(/^(Key|Digit)/, ''); });
   var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   var octaveShift = 0;
 
@@ -1084,7 +1094,7 @@
   var whiteIndex = 0;
   var byOffset = {};
 
-  for (var offset = 0; offset <= 24; offset++) {
+  for (var offset = 0; offset <= KEY_RANGE; offset++) {
     var mod = offset % 12;
     var isBlack = BLACK_SEMITONES.indexOf(mod) !== -1;
     var keyEl = document.createElement('div');
@@ -1118,7 +1128,7 @@
     el.addEventListener('pointerdown', function(e){
       e.preventDefault();
       ensurePower();
-      var midi = 60 + offset + octaveShift * 12;
+      var midi = BASE_MIDI + offset + octaveShift * 12;
       heldPointerNotes.add(midi);
       noteOn(midi, el);
     });
@@ -1138,20 +1148,21 @@
     if (e.repeat) return;
     var tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    var k = e.key.toLowerCase();
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.code;
     if (!(k in KEY_MAP) || heldLetters.has(k)) return;
     heldLetters.add(k);
     ensurePower();
     var offset = KEY_MAP[k];
-    var midi = 60 + offset + octaveShift * 12;
+    var midi = BASE_MIDI + offset + octaveShift * 12;
     noteOn(midi, byOffset[offset]);
   });
   window.addEventListener('keyup', function(e){
-    var k = e.key.toLowerCase();
-    if (!(k in KEY_MAP)) return;
+    var k = e.code;
+    if (!heldLetters.has(k)) return;
     heldLetters.delete(k);
     var offset = KEY_MAP[k];
-    var midi = 60 + offset + octaveShift * 12;
+    var midi = BASE_MIDI + offset + octaveShift * 12;
     noteOff(midi);
   });
   window.addEventListener('blur', allNotesOff);
@@ -1159,7 +1170,7 @@
   // ---------- octave ----------
   function setOctaveShift(v){
     octaveShift = Math.max(-2, Math.min(2, v));
-    document.getElementById('oct-readout').textContent = 4 + octaveShift;
+    document.getElementById('oct-readout').textContent = 3 + octaveShift;
   }
   document.getElementById('oct-down').addEventListener('click', function(){ setOctaveShift(octaveShift - 1); });
   document.getElementById('oct-up').addEventListener('click', function(){ setOctaveShift(octaveShift + 1); });
