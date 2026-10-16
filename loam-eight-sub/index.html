@@ -47,8 +47,6 @@
     font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
     min-height:100vh;
     display:flex;
-    align-items:center;
-    justify-content:center;
     padding:32px 16px;
   }
   kbd{
@@ -61,6 +59,8 @@
   }
 
   .chassis{
+    zoom:.9;
+    margin:auto; /* centres like align-items:center, but never pushes the top off-screen */
     width:100%;
     max-width:900px;
     background-color:var(--panel);

@@ -1,4 +1,4 @@
-# Loam Bundle
+# Loam Synth VST
 
 A growing collection of synthesizers, each shipped two ways: a
 self-contained HTML file you can just open in a browser, and a VST3 plugin
@@ -17,3 +17,9 @@ More to come.
 
 Я заставил Claude написать парочку синтезаторов для себя, возможно кто-то найдёт их полезными в своих проектах. 
 В планах реализация самых разнообразных типов VST плагинов, от синтезаторов до эффектов, используйте и переделывайте свободно.
+
+## Download
+
+Grab the latest build from [Releases](../../releases/latest):
+`loam-synth-vst-<platform>.zip` has every synth, or pick a single
+`<synth>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
