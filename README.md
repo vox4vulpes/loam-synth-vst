@@ -28,6 +28,17 @@ the [Release workflow](.github/workflows/release.yml) builds every `*/vst/` synt
 on Windows, macOS, and Linux and publishes the zips and the installer.
 
 
+## License
+
+Everything here — the web synths, the VST plugins, the installer and build
+scripts — is licensed under the [GNU AGPLv3](LICENSE). You can use, study,
+change and share it freely; if you distribute a modified version (or run a
+modified web synth for others online), you must publish its source under the
+same license. The plugins are built on [JUCE](https://juce.com), whose free
+open-source terms also require AGPLv3.
+
+Copyright (c) 2026 vox4vulpes
+
 ## От Автора:
 
 Я заставил Claude написать парочку синтезаторов для себя, возможно кто-то найдёт их полезными в своих проектах. 

@@ -36,6 +36,9 @@ ranges, driven by MIDI. Its panel mirrors the web version: the same colour-coded
 Oscillator / Filter / Envelope / Effects / Output modules, a preset dropdown,
 a NOTE readout, and an on-screen keyboard for auditioning without a controller.
 
+Like the rest of the repo, both the web version and the plugin are licensed
+under the [GNU AGPLv3](../LICENSE).
+
 Prebuilt binaries for Windows, macOS, and Linux are attached to each
 [GitHub Actions run](../../actions/workflows/build-vst.yml) and to
 [releases](../../releases). To build it yourself:

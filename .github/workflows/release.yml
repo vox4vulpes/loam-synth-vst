@@ -64,6 +64,7 @@ jobs:
             # MSVC drops import libs next to the .vst3; they're build leftovers.
             find "stage/$synth/VST3" -maxdepth 1 \( -name '*.lib' -o -name '*.exp' \) -delete
             if [ -d "$artefacts/Standalone" ]; then cp -R "$artefacts/Standalone" "stage/$synth/"; fi
+            cp "$src/LICENSE" "stage/$synth/LICENSE.txt"
 
             (cd stage && cmake -E tar cf "../dist/$synth-$platform.zip" --format=zip "$synth")
             echo "::endgroup::"

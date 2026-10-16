@@ -13,12 +13,15 @@ out=$3
 here=$(cd "$(dirname "$0")" && pwd)
 
 work=$(mktemp -d)
-mkdir -p "$work/VST3" "$work/Standalone" "$out"
+mkdir -p "$work/VST3" "$work/Standalone" "$work/Licenses" "$out"
 icons="$work/icons.iss"
 : > "$icons"
 
 for synth_dir in "$stage"/*/; do
   cp -R "${synth_dir}VST3/." "$work/VST3/"
+  if [ -f "${synth_dir}LICENSE.txt" ]; then
+    cp "${synth_dir}LICENSE.txt" "$work/Licenses/$(basename "$synth_dir")-LICENSE.txt"
+  fi
   for exe in "${synth_dir}"Standalone/*.exe; do
     [ -e "$exe" ] || continue
     cp "$exe" "$work/Standalone/"

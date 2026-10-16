@@ -43,10 +43,12 @@ UninstallDisplayName={#AppName}
 [InstallDelete]
 Type: filesandordirs; Name: "{#Vst3Dir}"
 Type: files; Name: "{app}\*.exe"
+Type: filesandordirs; Name: "{app}\Licenses"
 
 [Files]
 Source: "{#StageDir}\VST3\*"; DestDir: "{#Vst3Dir}"; Excludes: "*.lib,*.exp"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\Standalone\*"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#StageDir}\Licenses\*"; DestDir: "{app}\Licenses"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 #ifdef IconsFile
