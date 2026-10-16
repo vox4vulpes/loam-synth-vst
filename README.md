@@ -13,13 +13,14 @@ self-contained HTML file you can just open in a browser, and a VST3 plugin
 
 More to come.
 
-От Автора:
-
-Я заставил Claude написать парочку синтезаторов для себя, возможно кто-то найдёт их полезными в своих проектах. 
-В планах реализация самых разнообразных типов VST плагинов, от синтезаторов до эффектов, используйте и переделывайте свободно.
-
 ## Download
 
 Grab the latest build from [Releases](../../releases/latest):
 `Loam-Synth-Bundle-<platform>.zip` has every synth, or pick a single
 `<synth>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
+
+
+## От Автора:
+
+Я заставил Claude написать парочку синтезаторов для себя, возможно кто-то найдёт их полезными в своих проектах. 
+В планах реализация самых разнообразных типов VST плагинов, от синтезаторов до эффектов, используйте и переделывайте свободно.
