@@ -21,5 +21,5 @@ More to come.
 ## Download
 
 Grab the latest build from [Releases](../../releases/latest):
-`loam-synth-vst-<platform>.zip` has every synth, or pick a single
+`Loam-Synth-Bundle-<platform>.zip` has every synth, or pick a single
 `<synth>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
