@@ -15,6 +15,7 @@
     --teal:#336f6b;
     --coral:#b85540;
     --lavender:#8a78a3;
+    --sage:#5f7344;
     --readout-bg:#171308;
     --readout-ink:#f0a830;
     --focus:#2a7f90;
@@ -208,7 +209,7 @@
   }
 
   .wave-select{display:flex; gap:6px; flex-wrap:wrap;}
-  .wave-btn, .octave-controls button{
+  .wave-btn, .chip-btn, .octave-controls button{
     font-family:'IBM Plex Sans',sans-serif;
     font-weight:600;
     font-size:11px;
@@ -220,6 +221,8 @@
     color:var(--ink);
     cursor:pointer;
   }
+  .chip-btn.is-active{ background:var(--accent); color:var(--panel-raised); border-color:var(--accent); }
+  .chip-btn:disabled{ opacity:.45; cursor:default; }
   .wave-btn.is-active{ background:var(--mustard); color:var(--panel-raised); border-color:var(--mustard); }
   button{font-family:inherit;}
   button:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
@@ -234,7 +237,21 @@
     margin:0;
   }
 
-  .field{display:flex; flex-direction:column; gap:5px; margin-top:auto;}
+  .module--full{flex:1 1 100%;}
+  .preset-bar{display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 22px;}
+  .preset-group{display:flex; flex-direction:column; gap:6px;}
+  .preset-row{display:flex; align-items:center; gap:6px;}
+  .preset-row .chip-btn{min-width:30px;}
+  .preset-row .preset-select{min-width:180px;}
+  .preset-name{cursor:text; width:160px; font-weight:500;}
+  .preset-name::placeholder{color:var(--ink-soft);}
+  .preset-status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-soft);
+    margin:0;
+    min-height:1.3em;
+  }
   .preset-select{
     font-family:'IBM Plex Sans',sans-serif;
     font-weight:600;
@@ -369,6 +386,33 @@
   </div>
 
   <div class="modules">
+    <section class="module module--full" style="--accent:var(--sage)">
+      <h2 class="module-title">Presets</h2>
+      <div class="preset-bar">
+        <div class="preset-group">
+          <span class="knob-label" id="preset-type-label">Type</span>
+          <div class="wave-select" id="preset-types" role="group" aria-labelledby="preset-type-label"></div>
+        </div>
+        <div class="preset-group">
+          <label class="knob-label" for="preset-select">Version</label>
+          <div class="preset-row">
+            <button class="chip-btn" id="preset-prev" type="button" aria-label="Previous preset">&lsaquo;</button>
+            <select id="preset-select" class="preset-select"></select>
+            <button class="chip-btn" id="preset-next" type="button" aria-label="Next preset">&rsaquo;</button>
+          </div>
+        </div>
+        <div class="preset-group">
+          <label class="knob-label" for="preset-name">Save as user preset</label>
+          <div class="preset-row">
+            <input id="preset-name" class="preset-select preset-name" type="text" maxlength="32" placeholder="Preset name" autocomplete="off">
+            <button class="chip-btn" id="preset-save" type="button">SAVE</button>
+            <button class="chip-btn" id="preset-delete" type="button">DELETE</button>
+          </div>
+        </div>
+      </div>
+      <p class="preset-status" id="preset-status" aria-live="polite"></p>
+    </section>
+
     <section class="module" style="--accent:var(--mustard)">
       <h2 class="module-title">Oscillator</h2>
       <div class="wave-select" role="group" aria-label="Waveform">
@@ -401,16 +445,6 @@
     <section class="module" style="--accent:var(--mustard)">
       <h2 class="module-title">Output</h2>
       <div class="knob-row" id="out-knobs"></div>
-      <div class="field">
-        <label class="knob-label" for="preset-select">Preset</label>
-        <select id="preset-select" class="preset-select">
-          <option value="" selected disabled>&mdash; choose &mdash;</option>
-          <option value="LEAD">Lead</option>
-          <option value="BASS">Bass</option>
-          <option value="PAD">Pad</option>
-          <option value="PLUCK">Pluck</option>
-        </select>
-      </div>
     </section>
   </div>
 
@@ -771,19 +805,78 @@
   });
 
   // ---------- presets ----------
-  var PRESETS = {
-    LEAD:  { wave:'sawtooth', tune:0,  sub:0,  cutoff:4200, resonance:3, attack:5,   decay:120, sustain:80, release:150, volume:72,
-             delayTime:160, delayFeedback:20, delayMix:12, reverbMix:10, reverbSize:1.5, reverbTone:7000 },
-    BASS:  { wave:'square',   tune:0,  sub:60, cutoff:900,  resonance:6, attack:2,   decay:200, sustain:60, release:120, volume:78,
-             delayTime:220, delayFeedback:0,  delayMix:0,  reverbMix:5,  reverbSize:1.2, reverbTone:4000 },
-    PAD:   { wave:'triangle', tune:0,  sub:20, cutoff:1800, resonance:1, attack:400, decay:600, sustain:85, release:900, volume:62,
-             delayTime:380, delayFeedback:35, delayMix:28, reverbMix:45, reverbSize:4.5, reverbTone:5000 },
-    PLUCK: { wave:'sawtooth', tune:0,  sub:0,  cutoff:3000, resonance:8, attack:2,   decay:180, sustain:10, release:200, volume:70,
-             delayTime:220, delayFeedback:40, delayMix:22, reverbMix:15, reverbSize:1.8, reverbTone:6500 }
+  // Factory presets are grouped by type, each with several versions; the
+  // USER type holds presets saved from the panel, kept in this browser.
+  var PRESET_KNOBS = ['tune','sub','cutoff','resonance','attack','decay','sustain','release','volume',
+                      'delayTime','delayFeedback','delayMix','reverbMix','reverbSize','reverbTone'];
+  function preset(name, wave, values){
+    var p = { wave: wave };
+    PRESET_KNOBS.forEach(function(key, i){ p[key] = values[i]; });
+    return { name: name, params: p };
+  }
+  //                                      tune sub cutoff reso atk  dec  sus rel   vol  dTime dFb dMix rMix rSize rTone
+  var FACTORY_PRESETS = {
+    LEAD: [
+      preset('Classic',      'sawtooth', [0,  0,  4200, 3,   5,   120, 80, 150,  72,  160,  20, 12,  10,  1.5, 7000]),
+      preset('Square Lead',  'square',   [0,  0,  3200, 4,   3,   150, 75, 180,  70,  300,  30, 18,  12,  1.8, 6500]),
+      preset('Soft Sine',    'sine',     [0,  0,  6000, 1,   40,  200, 85, 350,  70,  260,  25, 20,  25,  2.5, 5000]),
+      preset('Detuned Saw',  'sawtooth', [12, 30, 5200, 2,   8,   150, 80, 220,  70,  180,  25, 15,  15,  2.0, 7000])
+    ],
+    BASS: [
+      preset('Classic',      'square',   [0,  60, 900,  6,   2,   200, 60, 120,  78,  220,  0,  0,   5,   1.2, 4000]),
+      preset('Sub Sine',     'sine',     [0,  80, 600,  1,   2,   250, 80, 100,  80,  220,  0,  0,   0,   1.0, 3000]),
+      preset('Acid',         'sawtooth', [0,  0,  700,  14,  1,   160, 30, 90,   72,  330,  30, 10,  5,   1.0, 4000]),
+      preset('Round Tri',    'triangle', [0,  50, 1400, 2,   5,   300, 70, 150,  78,  220,  0,  0,   8,   1.4, 4500])
+    ],
+    PAD: [
+      preset('Classic',      'triangle', [0,  20, 1800, 1,   400, 600, 85, 900,  62,  380,  35, 28,  45,  4.5, 5000]),
+      preset('Warm Saw',     'sawtooth', [0,  25, 1200, 1.5, 700, 900, 90, 1500, 58,  450,  30, 20,  50,  5.0, 4500]),
+      preset('Glass',        'sine',     [0,  0,  9000, 1,   900, 800, 80, 2200, 60,  520,  45, 30,  60,  6.0, 9000]),
+      preset('Dark Drone',   'square',   [0,  60, 500,  3,   1200,1500,100,2500, 60,  600,  50, 25,  55,  6.0, 2500])
+    ],
+    PLUCK: [
+      preset('Classic',      'sawtooth', [0,  0,  3000, 8,   2,   180, 10, 200,  70,  220,  40, 22,  15,  1.8, 6500]),
+      preset('Bell',         'sine',     [0,  0,  8000, 1,   1,   600, 0,  900,  72,  280,  35, 20,  30,  3.0, 8000]),
+      preset('Kalimba',      'triangle', [0,  0,  4000, 3,   1,   250, 0,  300,  74,  200,  30, 15,  20,  1.6, 6000]),
+      preset('Short Square', 'square',   [0,  20, 2200, 6,   1,   120, 0,  120,  70,  160,  45, 28,  12,  1.2, 5000])
+    ]
   };
-  document.getElementById('preset-select').addEventListener('change', function(e){
-    var p = PRESETS[e.target.value];
-    if (!p) return;
+  var PRESET_TYPES = [
+    { id:'LEAD', label:'Lead' }, { id:'BASS', label:'Bass' }, { id:'PAD', label:'Pad' },
+    { id:'PLUCK', label:'Pluck' }, { id:'USER', label:'User' }
+  ];
+  var USER_PRESETS_KEY = 'loam-eight-sub/user-presets/v1';
+
+  function loadUserPresets(){
+    try {
+      var list = JSON.parse(localStorage.getItem(USER_PRESETS_KEY) || '[]');
+      if (!Array.isArray(list)) return [];
+      return list.filter(function(p){ return p && typeof p.name === 'string' && p.params && typeof p.params === 'object'; });
+    } catch (err) {
+      return [];
+    }
+  }
+  function storeUserPresets(){
+    try { localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(userPresets)); return true; }
+    catch (err) { return false; }
+  }
+
+  var userPresets = loadUserPresets();
+  var presetType = 'LEAD';
+  var presetIndex = -1;
+
+  var presetTypesEl = document.getElementById('preset-types');
+  var presetSelect = document.getElementById('preset-select');
+  var presetPrev = document.getElementById('preset-prev');
+  var presetNext = document.getElementById('preset-next');
+  var presetName = document.getElementById('preset-name');
+  var presetSave = document.getElementById('preset-save');
+  var presetDelete = document.getElementById('preset-delete');
+  var presetStatus = document.getElementById('preset-status');
+
+  function presetsOf(type){ return type === 'USER' ? userPresets : FACTORY_PRESETS[type]; }
+
+  function applyPreset(p){
     Object.keys(p).forEach(function(key){
       if (key === 'wave') {
         params.wave = p.wave;
@@ -792,7 +885,110 @@
         knobs.get(key).setValue(p[key]);
       }
     });
+  }
+
+  function currentSettings(){
+    var p = { wave: params.wave };
+    PRESET_KNOBS.forEach(function(key){ p[key] = knobs.get(key).getValue(); });
+    return p;
+  }
+
+  var typeButtons = PRESET_TYPES.map(function(t){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-btn';
+    b.textContent = t.label.toUpperCase();
+    b.addEventListener('click', function(){ selectType(t.id, true); });
+    presetTypesEl.appendChild(b);
+    return b;
   });
+
+  function setStatus(text){ presetStatus.textContent = text; }
+
+  function renderPresetControls(){
+    typeButtons.forEach(function(b, i){
+      var on = PRESET_TYPES[i].id === presetType;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+
+    var list = presetsOf(presetType);
+    presetSelect.innerHTML = '';
+    if (!list.length) {
+      presetSelect.add(new Option(presetType === 'USER' ? '— no saved presets —' : '—', ''));
+    } else {
+      if (presetIndex < 0) {
+        var placeholder = new Option('— choose —', '');
+        placeholder.disabled = true;
+        presetSelect.add(placeholder);
+      }
+      list.forEach(function(p, i){ presetSelect.add(new Option((i + 1) + ' · ' + p.name, String(i))); });
+      presetSelect.value = presetIndex < 0 ? '' : String(presetIndex);
+    }
+    presetSelect.disabled = !list.length;
+    presetPrev.disabled = presetNext.disabled = !list.length;
+    presetDelete.disabled = !(presetType === 'USER' && presetIndex >= 0);
+  }
+
+  function loadVersion(index){
+    var list = presetsOf(presetType);
+    if (!list.length) return;
+    presetIndex = (index + list.length) % list.length;
+    applyPreset(list[presetIndex].params);
+    renderPresetControls();
+  }
+
+  function selectType(type, loadFirst){
+    presetType = type;
+    presetIndex = -1;
+    if (loadFirst && presetsOf(type).length) loadVersion(0);
+    else renderPresetControls();
+    setStatus('');
+  }
+
+  presetSelect.addEventListener('change', function(){
+    if (presetSelect.value !== '') loadVersion(Number(presetSelect.value));
+  });
+  presetPrev.addEventListener('click', function(){ loadVersion(presetIndex < 0 ? 0 : presetIndex - 1); });
+  presetNext.addEventListener('click', function(){ loadVersion(presetIndex + 1); });
+
+  function saveUserPreset(){
+    var name = presetName.value.trim();
+    if (!name) {
+      name = (presetType === 'USER' && presetIndex >= 0) ? userPresets[presetIndex].name
+                                                          : 'User ' + (userPresets.length + 1);
+    }
+    var existing = -1;
+    userPresets.forEach(function(p, i){ if (p.name.toLowerCase() === name.toLowerCase()) existing = i; });
+
+    var entry = { name: name, params: currentSettings() };
+    if (existing >= 0) userPresets[existing] = entry; else userPresets.push(entry);
+    var stored = storeUserPresets();
+
+    presetType = 'USER';
+    presetIndex = existing >= 0 ? existing : userPresets.length - 1;
+    presetName.value = '';
+    renderPresetControls();
+    setStatus(!stored ? 'Saved for this session only — browser storage is unavailable'
+              : (existing >= 0 ? 'Updated “' + name + '”' : 'Saved “' + name + '”'));
+  }
+  presetSave.addEventListener('click', saveUserPreset);
+  presetName.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); saveUserPreset(); }
+  });
+
+  presetDelete.addEventListener('click', function(){
+    if (presetType !== 'USER' || presetIndex < 0) return;
+    var name = userPresets[presetIndex].name;
+    if (!window.confirm('Delete user preset “' + name + '”?')) return;
+    userPresets.splice(presetIndex, 1);
+    var stored = storeUserPresets();
+    presetIndex = -1;
+    renderPresetControls();
+    setStatus(stored ? 'Deleted “' + name + '”' : 'Deleted for this session only — browser storage is unavailable');
+  });
+
+  selectType('LEAD', false);
 
   // ---------- keyboard (on-screen) ----------
   var BLACK_SEMITONES = [1,3,6,8,10];
@@ -853,6 +1049,8 @@
   var heldLetters = new Set();
   window.addEventListener('keydown', function(e){
     if (e.repeat) return;
+    var tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     var k = e.key.toLowerCase();
     if (!(k in KEY_MAP) || heldLetters.has(k)) return;
     heldLetters.add(k);

@@ -17,7 +17,9 @@ filter (cutoff/resonance) → per-voice ADSR envelope → delay and reverb sends
 - **Filter** — cutoff, resonance
 - **Envelope** — attack, decay, sustain, release
 - **Effects** — delay (time/feedback/mix), reverb (mix/tail size/tone)
-- **Output** — volume, preset dropdown (Lead / Bass / Pad / Pluck)
+- **Presets** — pick a type (Lead / Bass / Pad / Pluck), then one of its
+  versions; save your own sounds under **User** (kept in this browser)
+- **Output** — volume
 
 ## Playing it
 
