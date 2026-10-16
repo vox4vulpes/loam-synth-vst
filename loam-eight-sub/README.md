@@ -30,8 +30,9 @@ to the keybed.
 [`vst/`](vst/) has the same engine ported to C++/JUCE as a real VST3 +
 standalone plugin, for use in a DAW. It's a different codebase from the web
 version above (not a wrapper around it) — same signal path and parameter
-ranges, driven by MIDI instead of a browser keyboard, with JUCE's generic
-parameter editor for a GUI for now.
+ranges, driven by MIDI. Its panel mirrors the web version: the same colour-coded
+Oscillator / Filter / Envelope / Effects / Output modules, a preset dropdown,
+a NOTE readout, and an on-screen keyboard for auditioning without a controller.
 
 Prebuilt binaries for Windows, macOS, and Linux are attached to each
 [GitHub Actions run](../../actions/workflows/build-vst.yml) and to

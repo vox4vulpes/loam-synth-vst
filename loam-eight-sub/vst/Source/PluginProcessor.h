@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_basics/juce_audio_basics.h>
 #include "SynthEngine.h"
 
 class LoamEightSubProcessor : public juce::AudioProcessor
@@ -33,6 +35,11 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
     juce::AudioProcessorValueTreeState apvts;
+    juce::MidiKeyboardState keyboardState;   // on-screen keyboard in the editor
+    std::atomic<int> lastNote { -1 };        // for the editor's NOTE readout
+
+    static juce::StringArray getPresetNames();
+    void applyPreset (int index);
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

@@ -34,6 +34,7 @@ if(LOAM_BUILD_PLUGIN)
     target_sources(LoamEightSub PRIVATE
         Source/SynthEngine.cpp
         Source/PluginProcessor.cpp
+        Source/PluginEditor.cpp
     )
 
     target_compile_definitions(LoamEightSub PUBLIC
