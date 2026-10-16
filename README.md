@@ -19,6 +19,13 @@ Grab the latest build from [Releases](../../releases/latest):
 `Loam-Synth-Bundle-<platform>.zip` has every synth, or pick a single
 `<synth>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
 
+On Windows, `Loam-Synth-Bundle-Setup-<version>.exe` installs every synth into
+`Common Files\VST3\Loam Synth Bundle` and upgrades an older install in place.
+
+To cut a new release, push a version tag (`git tag v1.1.0 && git push origin v1.1.0`);
+the [Release workflow](.github/workflows/release.yml) builds every `*/vst/` synth
+on Windows, macOS, and Linux and publishes the zips and the installer.
+
 
 ## От Автора:
 
