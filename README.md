@@ -12,3 +12,7 @@ self-contained HTML file you can just open in a browser, and a VST3 plugin
   [VST3 plugin](loam-eight-sub/#vst3-plugin)
 
 More to come.
+
+От Автора:
+
+Я заставил Claude написать парочку синтезаторов для себя, возможно кто-то найдёт их полезными в своих проектах, в планах реализация самых разнообразных типов VST плагинов, от синтезаторов до эффектов.
