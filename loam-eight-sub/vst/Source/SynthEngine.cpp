@@ -13,7 +13,7 @@ void SynthEngine::prepare (double newSampleRate, int samplesPerBlock)
     reverbToneR = {};
     delayLine.reset();
     delayLine.setMaximumDelayInSamples ((int) (sampleRate * 1.0) + 4);
-    delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 1 });
+    delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 2 });   // two lines for ping-pong
 
     reverb.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 2 });
     reverb.reset();
@@ -435,12 +435,37 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
         filtered = processDrive (filtered, distortion, true, distTone);
 
         // Delay send (feedback line read-before-write).
-        const float delayRead = delayLine.popSample (0, (float) delaySamples, true);
-        delayLine.pushSample (0, filtered + delayRead * fbGain);
-        const float delayWet = delayRead * delayWetGain;
+        // Delay. Normal: one line fed back into itself, heard in the centre.
+        // Ping-pong: two lines feeding each other -- the first echo on the
+        // left, the next on the right, and so on.
+        float delayL, delayR;
+        if (delayPingPong)
+        {
+            const float readL = delayLine.popSample (0, (float) delaySamples, true);
+            const float readR = delayLine.popSample (1, (float) delaySamples, true);
+            delayLine.pushSample (0, filtered + readR * fbGain);
+            delayLine.pushSample (1, readL * fbGain);
+            delayL = readL * delayWetGain;
+            delayR = readR * delayWetGain;
+        }
+        else
+        {
+            const float read = delayLine.popSample (0, (float) delaySamples, true);
+            delayLine.pushSample (0, filtered + read * fbGain);
+            delayLine.popSample (1, (float) delaySamples, true);   // keep the second line moving, empty
+            delayLine.pushSample (1, 0.0f);
+            delayL = delayR = read * delayWetGain;
+        }
 
-        left[i] = (filtered + delayWet) * masterGain;
-        right[i] = left[i];
+        if (right != left)
+        {
+            left[i] = (filtered + delayL) * masterGain;
+            right[i] = (filtered + delayR) * masterGain;
+        }
+        else
+        {
+            left[i] = (filtered + 0.5f * (delayL + delayR)) * masterGain;   // mono output
+        }
 
         reverbScratchL[(size_t) i] = filtered;
         reverbScratchR[(size_t) i] = filtered;

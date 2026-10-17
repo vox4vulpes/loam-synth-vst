@@ -463,6 +463,100 @@ FxUnit::FxUnit (juce::AudioProcessorValueTreeState& state, const juce::String& t
     refreshDimming();
 }
 
+FxUnit::TypeMenu::TypeMenu()
+{
+    for (auto* b : { &normal, &pingPong })
+    {
+        b->setColour (juce::TextButton::buttonOnColourId, lavender);
+        b->setWantsKeyboardFocus (false);
+        addAndMakeVisible (*b);
+    }
+}
+
+void FxUnit::TypeMenu::paint (juce::Graphics& g)
+{
+    const auto r = getLocalBounds().toFloat().reduced (0.5f);
+    g.setColour (shadow);
+    g.fillRoundedRectangle (r.translated (0.0f, 2.0f), 6.0f);
+    g.setColour (panelRaised);
+    g.fillRoundedRectangle (r, 6.0f);
+    g.setColour (grooveDark);
+    g.drawRoundedRectangle (r, 6.0f, 1.0f);
+}
+
+void FxUnit::TypeMenu::resized()
+{
+    auto r = getLocalBounds().reduced (4);
+    normal.setBounds (r.removeFromTop (r.getHeight() / 2).reduced (0, 1));
+    pingPong.setBounds (r.reduced (0, 1));
+}
+
+void FxUnit::enableTypeMenu (juce::RangedAudioParameter& typeParam)
+{
+    addChildComponent (typeMenu);
+    typeAttachment = std::make_unique<juce::ParameterAttachment> (typeParam, [this] (float v)
+    {
+        pingPong = juce::roundToInt (v) == 1;
+        typeMenu.normal.setToggleState (! pingPong, juce::dontSendNotification);
+        typeMenu.pingPong.setToggleState (pingPong, juce::dontSendNotification);
+        title.setTooltip (pingPong ? "Delay type: ping-pong (hover to change)" : "Delay type: normal (hover to change)");
+        repaint();
+    });
+    typeAttachment->sendInitialUpdate();
+    typeMenu.normal.onClick = [this] { typeAttachment->setValueAsCompleteGesture (0.0f); };
+    typeMenu.pingPong.onClick = [this] { typeAttachment->setValueAsCompleteGesture (1.0f); };
+    addMouseListener (this, true);   // hear the mouse over child components too
+}
+
+void FxUnit::updateTypeMenuVisibility (juce::Point<int> mouse)
+{
+    if (typeAttachment == nullptr)
+        return;
+    const auto overTitle = title.getBounds().expanded (2).contains (mouse);
+    const auto overMenu = typeMenu.isVisible() && typeMenu.getBounds().expanded (4, 6).contains (mouse);
+    typeMenu.setVisible (overTitle || overMenu);
+}
+
+void FxUnit::mouseMove (const juce::MouseEvent& e)  { updateTypeMenuVisibility (e.getEventRelativeTo (this).getPosition()); }
+void FxUnit::mouseEnter (const juce::MouseEvent& e) { updateTypeMenuVisibility (e.getEventRelativeTo (this).getPosition()); }
+
+void FxUnit::mouseExit (const juce::MouseEvent& e)
+{
+    const auto pos = e.getEventRelativeTo (this).getPosition();
+    if (! getLocalBounds().contains (pos))
+        typeMenu.setVisible (false);
+    else
+        updateTypeMenuVisibility (pos);
+}
+
+// A table-tennis paddle (red rubber face, wooden handle) and a ball, drawn
+// small and in full colour in the unit's bottom-right corner.
+void FxUnit::drawPaddle (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    const auto unit = juce::jmin (area.getWidth() / 40.0f, area.getHeight() / 46.0f);
+    const auto origin = area.getCentre() - juce::Point<float> (20.0f, 23.0f) * unit;
+    auto at = [&] (float x, float y) { return origin + juce::Point<float> (x, y) * unit; };
+    const auto rotation = juce::AffineTransform::rotation (-0.52f, at (18, 24).x, at (18, 24).y);
+
+    juce::Path handle;
+    handle.addRoundedRectangle (at (15, 28).x, at (15, 28).y, 6.0f * unit, 15.0f * unit, 2.5f * unit);
+    g.setColour (juce::Colour (0xffb07a45));
+    g.fillPath (handle, rotation);
+
+    juce::Path rubber;
+    rubber.addEllipse (at (6, 5).x, at (6, 5).y, 24.0f * unit, 26.0f * unit);
+    g.setColour (driveRed);
+    g.fillPath (rubber, rotation);
+    g.setColour (juce::Colour (0xff7d1f19));
+    g.strokePath (rubber, juce::PathStrokeType (1.0f), rotation);
+
+    const auto ball = juce::Rectangle<float> (8.0f * unit, 8.0f * unit).withCentre (at (34, 7));
+    g.setColour (juce::Colours::white);
+    g.fillEllipse (ball);
+    g.setColour (grooveDark);
+    g.drawEllipse (ball, 1.0f);
+}
+
 void FxUnit::refreshDimming()
 {
     const auto on = toggle.getToggleState();
@@ -478,6 +572,9 @@ void FxUnit::paint (juce::Graphics& g)
     g.fillRoundedRectangle (bounds, 10.0f);
     g.setColour (groove);
     g.drawRoundedRectangle (bounds, 10.0f, 1.0f);
+
+    if (pingPong)
+        drawPaddle (g, juce::Rectangle<float> (24.0f, 28.0f).withPosition (bounds.getRight() - 27.0f, bounds.getBottom() - 32.0f));
 }
 
 void FxUnit::resized()
@@ -490,6 +587,9 @@ void FxUnit::resized()
 
     for (auto& k : knobs)
         k->setBounds (area.removeFromTop (fxKnobHeight).withSizeKeepingCentre (knobWidth, fxKnobHeight));
+
+    typeMenu.setBounds (getLocalBounds().reduced (4, 0).withTrimmedTop (28).withHeight (52));
+    typeMenu.toFront (false);
 }
 
 //==============================================================================
@@ -779,9 +879,9 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
       release   (p.apvts, "release",   "Release", coral,   "ms"),
       volume    (p.apvts, "volume",    "Volume",  mustard, "%"),
       delayUnit (p.apvts, "Delay", "delayOn", "delayMix",
-                 { std::make_unique<LoamKnob> (p.apvts, "delayTime", "Time", lavender, "ms"),
-                   std::make_unique<LoamKnob> (p.apvts, "delayFeedback", "Feedbk", lavender, "%"),
-                   std::make_unique<LoamKnob> (p.apvts, "delayMix", "Mix", lavender, "%") }),
+                 { std::make_unique<LoamKnob> (p.apvts, "delayMix", "Mix", lavender, "%"),
+                   std::make_unique<LoamKnob> (p.apvts, "delayTime", "Time", lavender, "ms"),
+                   std::make_unique<LoamKnob> (p.apvts, "delayFeedback", "Feedbk", lavender, "%") }),
       reverbUnit (p.apvts, "Reverb", "reverbOn", "reverbMix",
                   { std::make_unique<LoamKnob> (p.apvts, "reverbMix", "Mix", lavender, "%"),
                     std::make_unique<LoamKnob> (p.apvts, "reverbSize", "Size", lavender, "s", 1),
@@ -869,6 +969,8 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
         addAndMakeVisible (*k);
     for (auto* k : allKnobs())
         k->attachMod (p);
+
+    delayUnit.enableTypeMenu (*p.apvts.getParameter ("delayMode"));
 
     // TONE on the drive units and the reverb: click the label to flip lowpass / highpass.
     satUnit.getKnobs()[1]->setLabelToggle (*p.apvts.getParameter ("satToneHp"), "TONE <", "TONE >");

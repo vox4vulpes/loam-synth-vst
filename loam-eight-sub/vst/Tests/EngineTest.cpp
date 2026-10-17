@@ -255,6 +255,36 @@ int main()
         std::printf ("ok: reverb tail TONE < RMS %.4f, TONE > RMS %.5f\n", lp, hp);
     }
 
+    // Ping-pong delay: a short blip's first echo is on the left, the second on the right.
+    {
+        SynthEngine e;
+        e.prepare (44100.0, 512);
+        e.attackMs = 1.0f; e.decayMs = 10.0f; e.sustainPct = 0.0f; e.releaseMs = 1.0f;
+        e.delayTimeMs = 100.0f; e.delayFeedbackPct = 60.0f; e.delayMixPct = 100.0f;
+        e.delayPingPong = true;
+
+        juce::AudioBuffer<float> out (2, 44100 / 2);   // 500 ms
+        juce::AudioBuffer<float> block (2, 512);
+        e.noteOn (69, 1.0f);
+        for (int pos = 0; pos < out.getNumSamples(); pos += 512)
+        {
+            if (pos == 512) e.noteOff (69);
+            const auto n = juce::jmin (512, out.getNumSamples() - pos);
+            e.render (block, 0, n);
+            for (int ch = 0; ch < 2; ++ch)
+                out.copyFrom (ch, pos, block, ch, 0, n);
+        }
+        const auto first = 4410, second = 8820, len = 1500;   // echoes at 100 ms and 200 ms
+        const auto l1 = rms (out, 0, first, len), r1 = rms (out, 1, first, len);
+        const auto l2 = rms (out, 0, second, len), r2 = rms (out, 1, second, len);
+        if (! (l1 > 4.0f * r1 && r2 > 4.0f * l2))
+        {
+            std::fprintf (stderr, "FAIL: ping-pong echoes, 1st L=%f R=%f, 2nd L=%f R=%f\n", l1, r1, l2, r2);
+            return 1;
+        }
+        std::printf ("ok: ping-pong, 1st echo left (L %.3f / R %.4f), 2nd right (L %.4f / R %.3f)\n", l1, r1, l2, r2);
+    }
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }

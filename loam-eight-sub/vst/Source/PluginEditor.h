@@ -130,6 +130,13 @@ public:
     void refreshDimming();
     const std::array<std::unique_ptr<LoamKnob>, 3>& getKnobs() const { return knobs; }
 
+    // Delay only: hovering the title shows a NORMAL / PING-PONG choice for a
+    // choice parameter, and ping-pong puts a table-tennis paddle behind the knobs.
+    void enableTypeMenu (juce::RangedAudioParameter& typeParam);
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseEnter (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
+
 private:
     juce::AudioProcessorValueTreeState& apvts;
     juce::String mixId;
@@ -137,6 +144,19 @@ private:
     juce::ToggleButton toggle;
     juce::AudioProcessorValueTreeState::ButtonAttachment toggleAttachment;
     std::array<std::unique_ptr<LoamKnob>, 3> knobs;
+
+    struct TypeMenu : public juce::Component
+    {
+        juce::TextButton normal { "NORMAL" }, pingPong { "PING-PONG" };
+        TypeMenu();
+        void paint (juce::Graphics&) override;
+        void resized() override;
+    };
+    TypeMenu typeMenu;
+    std::unique_ptr<juce::ParameterAttachment> typeAttachment;
+    bool pingPong = false;
+    void updateTypeMenuVisibility (juce::Point<int> mouseInUnit);
+    static void drawPaddle (juce::Graphics&, juce::Rectangle<float> area);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FxUnit)
 };
@@ -254,6 +274,7 @@ private:
 
     LoamEightSubProcessor& audioProcessor;
     LoamLookAndFeel lnf;
+    juce::TooltipWindow tooltipWindow { this, 600 };   // shows setTooltip() hints (TONE, delay type)
 
     ScopeView scope;
 

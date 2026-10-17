@@ -286,6 +286,22 @@
   }
   .fx-head{display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;}
   .fx-unit .knob-row{flex-direction:column; align-items:center; gap:12px;}
+  .fx-unit{position:relative;}
+  /* Delay type: hover the DELAY title to pick NORMAL or PING-PONG. */
+  .fx-type-menu{
+    display:none; position:absolute; z-index:5; left:4px; right:4px; top:28px;
+    flex-direction:column; gap:3px; padding:4px;
+    background:var(--panel-raised); border:1px solid var(--groove-dark); border-radius:6px;
+    box-shadow:0 2px 6px var(--shadow);
+  }
+  .fx-type-menu .chip-btn{padding:3px 0; font-size:10px;}
+  .fx-head .fx-sub[data-type-menu]{cursor:default; text-decoration:underline dotted; text-underline-offset:3px;}
+  .fx-head:hover + .fx-type-menu, .fx-head:focus-within + .fx-type-menu, .fx-type-menu:hover{display:flex;}
+  /* Ping-pong: a table-tennis paddle and ball in the unit's bottom-right corner. */
+  .fx-unit.is-pingpong::after{
+    content:''; position:absolute; right:3px; bottom:4px; width:24px; height:28px; pointer-events:none;
+    background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'><g transform='rotate(-30 18 24)'><rect x='15' y='28' width='6' height='15' rx='2.5' fill='%23b07a45'/><ellipse cx='18' cy='18' rx='12' ry='13' fill='%23b8322a' stroke='%237d1f19' stroke-width='1'/></g><circle cx='34' cy='7' r='4' fill='white' stroke='%23a99c79' stroke-width='1'/></svg>") no-repeat center / contain;
+  }
   .fx-unit .knob-row{transition:opacity .15s, filter .15s;}
   .fx-unit.is-off .knob-row{opacity:.42; filter:grayscale(.7);}
   .fx-unit.is-off .fx-sub{opacity:.6;}
@@ -647,8 +663,12 @@
       <div class="fx-rack" data-page="0">
         <div class="fx-unit is-off" data-fx="delay">
           <div class="fx-head">
-            <span class="fx-sub" id="fx-delay-label">Delay</span>
+            <span class="fx-sub" id="fx-delay-label" data-type-menu tabindex="0">Delay</span>
             <label class="fx-switch"><input type="checkbox" id="fx-delay-on" role="switch" aria-labelledby="fx-delay-label"><span class="fx-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="fx-type-menu" role="group" aria-label="Delay type">
+            <button class="chip-btn" type="button" data-delay-mode="normal">NORMAL</button>
+            <button class="chip-btn" type="button" data-delay-mode="pingpong">PING-PONG</button>
           </div>
           <div class="knob-row" id="delay-knobs"></div>
         </div>
@@ -742,7 +762,8 @@
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
     // Portamento: a performance setting, not part of presets.
     satDrive:30, satTone:8000, satMix:50, distDrive:40, distTone:5000, distMix:50,
-    satToneHp:false, distToneHp:false, reverbToneHp:false,   // tone filter type: false = lowpass "TONE <", true = highpass "TONE >"
+    satToneHp:false, distToneHp:false, reverbToneHp:false,
+    delayMode:'normal',   // 'normal' or 'pingpong'   // tone filter type: false = lowpass "TONE <", true = highpass "TONE >"
     portaOn:false, portaTime:150, portaLow:60, portaHigh:76,
     // Wheels: what the mod wheel does, and how far pitch bend reaches (semitones).
     modMode:'vib', bendRange:2
@@ -756,6 +777,7 @@
   var fxOn = { delay: false, reverb: false, sat: false, dist: false };
   var satStage = null, distStage = null;
   var delayNode = null, delayFeedbackGain = null, delayWetGain = null;
+  var ppIn = null, ppDelayL = null, ppDelayR = null, ppFbLR = null, ppFbRL = null, ppWet = null;
   var convolver = null, reverbToneFilter = null, reverbWetGain = null, reverbRegenTimer = null;
   var activeVoices = new Map();
   // Sustain pedal: while on, released keys keep sounding (kept in
@@ -847,6 +869,25 @@
     delayFeedbackGain.connect(delayNode);
     delayNode.connect(delayWetGain);
     delayWetGain.connect(sumBus);
+
+    // Ping-pong: two delays feeding each other, panned hard left and right,
+    // so the first echo is on the left, the next on the right, and so on.
+    ppIn = audioCtx.createGain();
+    ppDelayL = audioCtx.createDelay(1.0);
+    ppDelayR = audioCtx.createDelay(1.0);
+    ppDelayL.delayTime.value = ppDelayR.delayTime.value = params.delayTime / 1000;
+    ppFbLR = audioCtx.createGain();
+    ppFbRL = audioCtx.createGain();
+    ppWet = audioCtx.createGain();
+    var ppMerge = audioCtx.createChannelMerger(2);
+    driveOut.connect(ppIn);
+    ppIn.connect(ppDelayL);
+    ppDelayL.connect(ppFbLR); ppFbLR.connect(ppDelayR);
+    ppDelayR.connect(ppFbRL); ppFbRL.connect(ppDelayL);
+    ppDelayL.connect(ppMerge, 0, 0);
+    ppDelayR.connect(ppMerge, 0, 1);
+    ppMerge.connect(ppWet);
+    ppWet.connect(sumBus);
 
     convolver = audioCtx.createConvolver();
     convolver.normalize = true;
@@ -1339,12 +1380,16 @@
       onInput:function(v){ params.release = v; } },
     { id:'volume', module:'out-knobs', label:'VOLUME', min:0, max:100, def:70, unit:'%',
       onInput:function(v){ params.volume = v; if (masterGain) masterGain.gain.setTargetAtTime((v/100)*0.8, audioCtx.currentTime, 0.01); } },
-    { id:'delayTime', module:'delay-knobs', label:'TIME', min:20, max:800, def:220, unit:'ms',
-      onInput:function(v){ params.delayTime = v; if (delayNode) delayNode.delayTime.setTargetAtTime(v/1000, audioCtx.currentTime, 0.01); } },
-    { id:'delayFeedback', module:'delay-knobs', label:'FEEDBK', min:0, max:85, def:30, unit:'%',
-      onInput:function(v){ params.delayFeedback = v; updateFxGains(); } },
     { id:'delayMix', module:'delay-knobs', label:'MIX', min:0, max:100, def:0, unit:'%',
       onInput:function(v){ params.delayMix = v; updateFxGains(); } },
+    { id:'delayTime', module:'delay-knobs', label:'TIME', min:20, max:800, def:220, unit:'ms',
+      onInput:function(v){
+        params.delayTime = v;
+        if (!delayNode) return;
+        [delayNode, ppDelayL, ppDelayR].forEach(function(n){ n.delayTime.setTargetAtTime(v / 1000, audioCtx.currentTime, 0.01); });
+      } },
+    { id:'delayFeedback', module:'delay-knobs', label:'FEEDBK', min:0, max:85, def:30, unit:'%',
+      onInput:function(v){ params.delayFeedback = v; updateFxGains(); } },
     { id:'reverbMix', module:'reverb-knobs', label:'MIX', min:0, max:100, def:0, unit:'%',
       onInput:function(v){ params.reverbMix = v; updateFxGains(); } },
     { id:'reverbSize', module:'reverb-knobs', label:'SIZE', min:0.3, max:6, def:2.2, unit:'s',
@@ -1490,8 +1535,13 @@
   function updateFxGains(){
     if (!audioCtx) return;
     var t = audioCtx.currentTime;
-    delayWetGain.gain.setTargetAtTime(fxOn.delay ? params.delayMix / 100 : 0, t, 0.01);
-    delayFeedbackGain.gain.setTargetAtTime(fxOn.delay ? params.delayFeedback / 100 : 0, t, 0.01);
+    var normal = fxOn.delay && params.delayMode === 'normal', pp = fxOn.delay && params.delayMode === 'pingpong';
+    delayWetGain.gain.setTargetAtTime(normal ? params.delayMix / 100 : 0, t, 0.01);
+    delayFeedbackGain.gain.setTargetAtTime(normal ? params.delayFeedback / 100 : 0, t, 0.01);
+    ppIn.gain.setTargetAtTime(pp ? 1 : 0, t, 0.01);
+    ppWet.gain.setTargetAtTime(pp ? params.delayMix / 100 : 0, t, 0.01);
+    ppFbLR.gain.setTargetAtTime(pp ? params.delayFeedback / 100 : 0, t, 0.01);
+    ppFbRL.gain.setTargetAtTime(pp ? params.delayFeedback / 100 : 0, t, 0.01);
     reverbWetGain.gain.setTargetAtTime(fxOn.reverb ? params.reverbMix / 100 : 0, t, 0.01);
   }
 
@@ -1554,6 +1604,25 @@
   document.getElementById('fx-prev').addEventListener('click', function(){ setFxPage(fxPage - 1); });
   document.getElementById('fx-next').addEventListener('click', function(){ setFxPage(fxPage + 1); });
 
+  // ---------- delay type: normal / ping-pong ----------
+  var delayModeButtons = document.querySelectorAll('[data-delay-mode]');
+  function setDelayMode(mode){
+    params.delayMode = mode;
+    delayModeButtons.forEach(function(b){
+      var on = b.dataset.delayMode === mode;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var unit = document.querySelector('.fx-unit[data-fx="delay"]');
+    unit.classList.toggle('is-pingpong', mode === 'pingpong');
+    document.getElementById('fx-delay-label').title = 'Delay type: ' + (mode === 'pingpong' ? 'ping-pong' : 'normal') + ' (hover to change)';
+    updateFxGains();
+  }
+  delayModeButtons.forEach(function(b){
+    b.addEventListener('click', function(){ setDelayMode(b.dataset.delayMode); b.blur(); });   // let the menu close
+  });
+  setDelayMode(params.delayMode);
+
   function setFx(id, on, fromUser){
     fxOn[id] = on;
     document.getElementById('fx-' + id + '-on').checked = on;
@@ -1581,6 +1650,7 @@
     p.reverbOn = p.reverbMix > 0;
     p.satOn = p.distOn = false;   // factory sounds are clean
     p.satToneHp = p.distToneHp = p.reverbToneHp = false;
+    p.delayMode = 'normal';
     // Every preset sets up the wheels too: VIB, +-2 and nothing on CUST unless
     // the sound says otherwise (see FACTORY_WHEELS).
     p.modMode = 'vib';
@@ -1689,6 +1759,7 @@
     params.satToneHp = !!p.satToneHp;
     params.distToneHp = !!p.distToneHp;
     params.reverbToneHp = !!p.reverbToneHp;
+    setDelayMode(p.delayMode === 'pingpong' ? 'pingpong' : 'normal');
     ['satTone', 'distTone', 'reverbTone'].forEach(function(id){ knobs.get(id).renderToggle(); });
     applyToneTypes();
     setFx('sat', !!p.satOn, false);
@@ -1706,6 +1777,7 @@
     p.satToneHp = params.satToneHp;
     p.distToneHp = params.distToneHp;
     p.reverbToneHp = params.reverbToneHp;
+    p.delayMode = params.delayMode;
     p.modMode = params.modMode;
     p.bendRange = params.bendRange;
     p.modMap = {};

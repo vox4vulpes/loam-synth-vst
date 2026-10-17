@@ -38,11 +38,16 @@ release workflow refuses to publish a version that has no section here.
   lowpass (**TONE <**, cuts the fizz) and highpass (**TONE >**, cuts the low
   end of the drive). Both are 12 dB/oct Butterworth filters, identical in the
   VST and on the web.
+- **Ping-pong delay.** Hover the DELAY title to choose **NORMAL** or
+  **PING-PONG**; in ping-pong the echoes bounce left, right, left... and a
+  table-tennis paddle appears in the unit's corner. Saved with user presets;
+  factory presets use normal.
 - **Reverb TONE** switches the same way: **TONE <** reverbs only the lows and
   mids (a warm, dark tail), **TONE >** only the highs (air on top, a clean low
   end). The dry sound is untouched.
 
 ### Changed
+- Delay's **MIX** knob is now on top (MIX, TIME, FEEDBK), like Reverb's.
 - The VST's reverb TONE is now a filter on the reverb, the same as the web
   version, instead of the reverb's internal damping, so reverb tails sound the
   same in both; they may sound slightly different from 1.3.

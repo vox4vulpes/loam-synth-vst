@@ -38,6 +38,7 @@ public:
     float delayTimeMs = 220.0f;
     float delayFeedbackPct = 30.0f;
     float delayMixPct = 0.0f;
+    bool delayPingPong = false;   // echoes bounce left, right, left... instead of sitting in the centre
     float reverbMixPct = 0.0f;
     float reverbSizeSec = 2.2f;
     float reverbToneHz = 6000.0f;
