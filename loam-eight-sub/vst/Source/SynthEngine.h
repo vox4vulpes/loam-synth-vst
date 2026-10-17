@@ -18,6 +18,9 @@ public:
     void noteOn (int midiNote, float velocity);
     void noteOff (int midiNote);
     void allNotesOff();
+    // Sustain pedal (MIDI CC 64): while down, released keys keep sounding;
+    // lifting it releases every note whose key is no longer held.
+    void setSustain (bool down);
     void render (juce::AudioBuffer<float>& buffer, int startSample, int numSamples);
 
     // Parameters -- set these from the processor every block before calling render().
@@ -44,6 +47,7 @@ private:
     struct Voice
     {
         bool active = false;
+        bool keyDown = false;   // key still held (vs. kept sounding by the pedal)
         int note = -1;
         double phase = 0.0;
         double subPhase = 0.0;
@@ -57,6 +61,7 @@ private:
     std::array<Voice, numVoices> voices;
 
     double sampleRate = 44100.0;
+    bool sustainDown = false;
 
     // Shared lowpass filter (RBJ biquad), recalculated once per block.
     double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
@@ -71,4 +76,5 @@ private:
     Voice* allocateVoice (int note);
     float oscillatorSample (Wave w, double ph) const;
     void advanceEnvelope (Voice& v);
+    static void startRelease (Voice& v);
 };

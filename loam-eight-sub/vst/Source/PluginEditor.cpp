@@ -356,6 +356,36 @@ void LoamKeyboard::setBaseNote (int midiNote)
     repaint();
 }
 
+bool LoamKeyboard::keyPressed (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::spaceKey)
+        return true;   // handled in keyStateChanged; don't let it reach the host
+    return MidiKeyboardComponent::keyPressed (key);
+}
+
+bool LoamKeyboard::keyStateChanged (bool isKeyDown)
+{
+    const auto handled = MidiKeyboardComponent::keyStateChanged (isKeyDown);
+    const auto space = juce::KeyPress::isKeyCurrentlyDown (juce::KeyPress::spaceKey);
+    setSpaceDown (space);
+    return handled || space;
+}
+
+void LoamKeyboard::focusLost (FocusChangeType cause)
+{
+    MidiKeyboardComponent::focusLost (cause);
+    setSpaceDown (false);
+}
+
+void LoamKeyboard::setSpaceDown (bool down)
+{
+    if (down == spaceDown)
+        return;
+    spaceDown = down;
+    if (onSustainKey)
+        onSustainKey (down);
+}
+
 juce::String LoamKeyboard::capFor (int midiNoteNumber) const
 {
     const auto offset = midiNoteNumber - baseNote;
@@ -480,6 +510,7 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     keyboard.setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId, coral.withAlpha (0.75f));
     keyboard.setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, mustard.withAlpha (0.3f));
     keyboard.setColour (juce::MidiKeyboardComponent::shadowColourId, shadow);
+    keyboard.onSustainKey = [this] (bool down) { audioProcessor.uiSustain = down; };
     addAndMakeVisible (keyboard);
 
     octaveDown.onClick = [this] { setOctave (octaveShift - 1); };
@@ -514,6 +545,7 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
 
 LoamEightSubEditor::~LoamEightSubEditor()
 {
+    audioProcessor.uiSustain = false;
     setLookAndFeel (nullptr);
 }
 
@@ -670,6 +702,12 @@ void LoamEightSubEditor::timerCallback()
         repaint (headerArea);
     }
 
+    if (const auto pedal = audioProcessor.sustainActive.load(); pedal != shownSustain)
+    {
+        shownSustain = pedal;
+        repaint (sustainLight);
+    }
+
     // Let computer keys play straight away, without clicking the keyboard first.
     if (! keyboardFocused && keyboard.isShowing())
     {
@@ -747,6 +785,20 @@ void LoamEightSubEditor::paint (juce::Graphics& g)
     g.setColour (grooveDark);
     g.fillRoundedRectangle (scopeBay.toFloat(), 10.0f);
     g.fillRoundedRectangle (keyboardBay.toFloat(), 10.0f);
+
+    // SUSTAIN light in the keyboard bay: lit while the pedal (or Space) is down.
+    auto light = sustainLight.toFloat();
+    const auto led = juce::Rectangle<float> (9.0f, 9.0f).withCentre ({ light.getRight() - 6.0f, light.getCentreY() });
+    if (shownSustain)
+    {
+        g.setColour (coral.withAlpha (0.35f));
+        g.fillEllipse (led.expanded (3.0f));
+    }
+    g.setColour (shownSustain ? coral : ink.withAlpha (0.25f));
+    g.fillEllipse (led);
+    g.setColour (ink);
+    g.setFont (monoFont (10.0f).withExtraKerningFactor (0.12f));
+    g.drawText ("SUSTAIN", light.withTrimmedRight (16.0f), juce::Justification::centredRight, false);
     g.setColour (readoutInk.withAlpha (0.5f));
     g.setFont (monoFont (9.0f).withExtraKerningFactor (0.15f));
     g.drawText ("SCOPE", scopeBay.reduced (12, 0).removeFromBottom (16), juce::Justification::centredRight, false);
@@ -848,6 +900,7 @@ void LoamEightSubEditor::resized()
     octaveDown.setBounds (octaveRow.removeFromLeft (28));
     octaveLabel.setBounds (octaveRow.removeFromLeft (64));
     octaveUp.setBounds (octaveRow.removeFromLeft (28));
+    sustainLight = octaveRow.removeFromRight (90);
     kb.removeFromTop (6);
     keyboard.setBounds (kb);
     keyboard.setKeyWidth ((float) kb.getWidth() / 17.0f);   // 17 white keys, C to E two octaves up

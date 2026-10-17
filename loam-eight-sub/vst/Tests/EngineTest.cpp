@@ -53,6 +53,36 @@ int main()
     }
     std::printf ("ok: released RMS=%f\n", silentLevel);
 
+    // Sustain pedal: a note released while the pedal is down keeps sounding,
+    // and lifting the pedal lets it release to silence.
+    engine.noteOn (64, 1.0f);
+    for (int block = 0; block < 10; ++block)
+        engine.render (buffer, 0, blockSize);
+    engine.setSustain (true);
+    engine.noteOff (64);
+    for (int block = 0; block < 60; ++block)
+        engine.render (buffer, 0, blockSize);
+
+    const float sustainedLevel = rms (buffer, 0, 0, blockSize);
+    if (sustainedLevel < 0.01f)
+    {
+        std::fprintf (stderr, "FAIL: expected the pedal to hold the note, got RMS=%f\n", sustainedLevel);
+        return 1;
+    }
+    std::printf ("ok: held by pedal RMS=%f\n", sustainedLevel);
+
+    engine.setSustain (false);
+    for (int block = 0; block < 60; ++block)
+        engine.render (buffer, 0, blockSize);
+
+    const float afterPedalLevel = rms (buffer, 0, 0, blockSize);
+    if (afterPedalLevel > 0.001f)
+    {
+        std::fprintf (stderr, "FAIL: expected silence after lifting the pedal, got RMS=%f\n", afterPedalLevel);
+        return 1;
+    }
+    std::printf ("ok: pedal lifted RMS=%f\n", afterPedalLevel);
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }

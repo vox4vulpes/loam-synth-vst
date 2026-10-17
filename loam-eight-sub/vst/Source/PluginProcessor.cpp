@@ -168,10 +168,18 @@ void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     pullParameters();
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
+    auto applySustain = [this] { engine.setSustain (midiSustain || uiSustain.load()); };
+    applySustain();
+
     for (const auto metadata : midi)
     {
         const auto msg = metadata.getMessage();
-        if (msg.isNoteOn())
+        if (msg.isSustainPedalOn() || msg.isSustainPedalOff())
+        {
+            midiSustain = msg.isSustainPedalOn();
+            applySustain();
+        }
+        else if (msg.isNoteOn())
         {
             engine.noteOn (msg.getNoteNumber(), msg.getFloatVelocity());
             lastNote = msg.getNoteNumber();
@@ -181,6 +189,8 @@ void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         else if (msg.isAllNotesOff() || msg.isAllSoundOff())
             engine.allNotesOff();
     }
+
+    sustainActive = midiSustain || uiSustain.load();
 
     engine.render (buffer, 0, buffer.getNumSamples());
     pushToScope (buffer);

@@ -40,6 +40,8 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;   // on-screen keyboard in the editor
     std::atomic<int> lastNote { -1 };        // for the editor's NOTE readout
+    std::atomic<bool> uiSustain { false };   // Space on the on-screen keyboard acts as the pedal
+    std::atomic<bool> sustainActive { false };   // pedal state shown by the editor's SUSTAIN light
 
     //==============================================================================
     // Presets: factory ones grouped by type with several versions each (same
@@ -74,6 +76,7 @@ private:
     void pushToScope (const juce::AudioBuffer<float>&);
 
     SynthEngine engine;
+    bool midiSustain = false;   // CC 64 from the host / MIDI input
 
     std::array<std::atomic<float>, scopeSize> scopeRing {};
     std::atomic<int> scopeWritePos { 0 };

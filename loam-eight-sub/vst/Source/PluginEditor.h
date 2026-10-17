@@ -104,6 +104,12 @@ public:
     explicit LoamKeyboard (juce::MidiKeyboardState&);
 
     void setBaseNote (int midiNote);
+
+    // Space works as a sustain pedal while the keyboard has focus.
+    std::function<void (bool)> onSustainKey;
+    bool keyPressed (const juce::KeyPress&) override;
+    bool keyStateChanged (bool isKeyDown) override;
+    void focusLost (FocusChangeType) override;
     int getBaseNote() const { return baseNote; }
     static constexpr int numKeys = 29;   // C to E two octaves up
 
@@ -114,7 +120,9 @@ public:
 
 private:
     juce::String capFor (int midiNoteNumber) const;
+    void setSpaceDown (bool);
     int baseNote = 48;
+    bool spaceDown = false;
 };
 
 class LoamEightSubEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -183,8 +191,9 @@ private:
     Module fx            { "Effects",    LoamColours::lavender, {} };
     Module out           { "Output",     LoamColours::mustard,  {} };
 
-    juce::Rectangle<int> headerArea, scopeBay, keyboardBay;
+    juce::Rectangle<int> headerArea, scopeBay, keyboardBay, sustainLight;
     int shownNote = -2;
+    bool shownSustain = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LoamEightSubEditor)
 };

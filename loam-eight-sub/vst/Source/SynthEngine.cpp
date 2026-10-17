@@ -35,9 +35,14 @@ SynthEngine::Voice* SynthEngine::allocateVoice (int note)
         if (! v.active)
             return &v;
 
-    // No free voice: steal one already releasing, else the oldest slot.
+    // No free voice: steal one already releasing, then one only the sustain
+    // pedal is holding, else the oldest slot.
     for (auto& v : voices)
         if (v.stage == Stage::Release)
+            return &v;
+
+    for (auto& v : voices)
+        if (! v.keyDown)
             return &v;
 
     return &voices.front();
@@ -47,6 +52,7 @@ void SynthEngine::noteOn (int midiNote, float /*velocity*/)
 {
     auto* v = allocateVoice (midiNote);
     v->active = true;
+    v->keyDown = true;
     v->note = midiNote;
     v->phase = 0.0;
     v->subPhase = 0.0;
@@ -55,23 +61,43 @@ void SynthEngine::noteOn (int midiNote, float /*velocity*/)
     v->envLevel = 0.0f;
 }
 
+void SynthEngine::startRelease (Voice& v)
+{
+    v.keyDown = false;
+    if (v.stage == Stage::Release || v.stage == Stage::Idle)
+        return;
+    v.releaseStartLevel = v.envLevel;
+    v.stage = Stage::Release;
+}
+
 void SynthEngine::noteOff (int midiNote)
 {
     if (auto* v = findVoiceForNote (midiNote))
     {
-        v->releaseStartLevel = v->envLevel;
-        v->stage = Stage::Release;
+        if (sustainDown)
+            v->keyDown = false;   // the pedal keeps it sounding until it lifts
+        else
+            startRelease (*v);
     }
+}
+
+void SynthEngine::setSustain (bool down)
+{
+    if (down == sustainDown)
+        return;
+
+    sustainDown = down;
+    if (! down)
+        for (auto& v : voices)
+            if (v.active && ! v.keyDown)
+                startRelease (v);
 }
 
 void SynthEngine::allNotesOff()
 {
     for (auto& v : voices)
         if (v.active)
-        {
-            v.releaseStartLevel = v.envLevel;
-            v.stage = Stage::Release;
-        }
+            startRelease (v);
 }
 
 void SynthEngine::updateFilterCoefficients()

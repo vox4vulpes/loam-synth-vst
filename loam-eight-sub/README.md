@@ -28,7 +28,12 @@ Flip the power switch, then play two octaves from your computer keyboard,
 tracker-style: `Z`–`M` is the lower octave (sharps on `S D G H J`), `Q`–`P`
 the upper one (sharps on `2 3 5 6 7 9 0`). Keys are matched by position, so
 any keyboard layout works. Or click the on-screen keys; the octave buttons
-shift both rows.
+shift both rows. Hold `Space` as a sustain pedal.
+
+A MIDI keyboard works too in Chrome and Edge (Web MIDI): turn the power on,
+allow MIDI access, and play — notes and the sustain pedal (CC 64) both
+respond. The VST takes the same MIDI from your DAW, and its standalone app
+also uses `Space` as the pedal.
 
 ## VST3 plugin
 

@@ -391,6 +391,21 @@
     font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;
     color:var(--ink);
   }
+  .bay-status{margin-left:auto; display:flex; align-items:center; gap:14px; min-width:0;}
+  .midi-status{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink);
+    opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;
+  }
+  .sustain-ind{
+    display:flex; align-items:center; gap:6px;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:var(--ink);
+  }
+  .sustain-ind .led{
+    width:9px; height:9px; border-radius:50%;
+    background:rgba(42,36,29,.25);
+    transition:background .1s, box-shadow .1s;
+  }
+  .sustain-ind.is-on .led{background:var(--coral); box-shadow:0 0 6px var(--coral);}
   .keyboard-scroll{overflow-x:auto; flex:1;}
   .keyboard{position:relative; height:132px; width:100%; min-width:440px;}
   .key{
@@ -537,6 +552,10 @@
         <button id="oct-down" type="button" aria-label="Octave down">&minus;</button>
         <span class="oct-caption">OCTAVE</span>
         <button id="oct-up" type="button" aria-label="Octave up">+</button>
+        <div class="bay-status">
+          <span class="midi-status" id="midi-status"></span>
+          <span class="sustain-ind" id="sustain-ind" title="Sustain pedal (or hold Space)">SUSTAIN<span class="led" aria-hidden="true"></span></span>
+        </div>
       </div>
       <div class="keyboard-scroll">
         <div class="keyboard" id="keyboard"></div>
@@ -544,7 +563,7 @@
     </div>
   </div>
 
-  <p class="instructions">Flip the power switch, then play with <kbd>Z</kbd>&ndash;<kbd>M</kbd> (lower octave) and <kbd>Q</kbd>&ndash;<kbd>P</kbd> (upper octave), sharps on the row above each, or click the keys.</p>
+  <p class="instructions">Flip the power switch, then play with <kbd>Z</kbd>&ndash;<kbd>M</kbd> (lower octave) and <kbd>Q</kbd>&ndash;<kbd>P</kbd> (upper octave), sharps on the row above each, or click the keys. Hold <kbd>Space</kbd> as a sustain pedal. A MIDI keyboard (with its pedal) works too in Chrome and Edge once the power is on.</p>
 </div>
 
 <script>
@@ -562,6 +581,10 @@
   var delayNode = null, delayFeedbackGain = null, delayWetGain = null;
   var convolver = null, reverbToneFilter = null, reverbWetGain = null, reverbRegenTimer = null;
   var activeVoices = new Map();
+  // Sustain pedal: while on, released keys keep sounding (kept in
+  // sustainedNotes) until the pedal lifts. Space and MIDI CC 64 both drive it.
+  var sustainOn = false, sustainedNotes = new Set();
+  var sustainSources = { key: false, midi: false };
 
   // Tracker-style layout over two rows, matched by physical key (e.code) so
   // it plays the same in any keyboard layout, e.g. Russian.
@@ -664,14 +687,20 @@
     if (on) {
       initAudio();
       if (audioCtx.state === 'suspended') audioCtx.resume();
+      initMidi();
     } else {
-      Array.from(activeVoices.keys()).forEach(noteOff);
+      allNotesOff();
       if (audioCtx) audioCtx.suspend();
     }
   }
 
   function noteOn(midi, keyEl){
-    if (!audioCtx || activeVoices.has(midi)) return;
+    if (!audioCtx) return;
+    if (activeVoices.has(midi)) {
+      if (!sustainedNotes.has(midi)) return;   // key already held
+      sustainedNotes.delete(midi);
+      releaseVoice(midi);                      // re-strike a note the pedal was holding
+    }
     var now = audioCtx.currentTime;
     var freq = 440 * Math.pow(2, (midi - 69) / 12) * Math.pow(2, params.tune / 1200);
 
@@ -712,6 +741,16 @@
   }
 
   function noteOff(midi){
+    if (sustainOn && activeVoices.has(midi)) {
+      sustainedNotes.add(midi);
+      var held = activeVoices.get(midi);
+      if (held.keyEl) held.keyEl.classList.remove('active');
+      return;
+    }
+    releaseVoice(midi);
+  }
+
+  function releaseVoice(midi){
     var v = activeVoices.get(midi);
     if (!v || !audioCtx) return;
     var now = audioCtx.currentTime;
@@ -726,7 +765,51 @@
     activeVoices.delete(midi);
   }
 
-  function allNotesOff(){ Array.from(activeVoices.keys()).forEach(noteOff); }
+  function allNotesOff(){
+    sustainedNotes.clear();
+    Array.from(activeVoices.keys()).forEach(releaseVoice);
+  }
+
+  function setSustainSource(source, down){
+    sustainSources[source] = down;
+    var on = sustainSources.key || sustainSources.midi;
+    if (on === sustainOn) return;
+    sustainOn = on;
+    document.getElementById('sustain-ind').classList.toggle('is-on', on);
+    if (!on) {
+      sustainedNotes.forEach(releaseVoice);
+      sustainedNotes.clear();
+    }
+  }
+
+  // ---------- MIDI input (Web MIDI: Chrome, Edge) ----------
+  var midiAccess = null;
+  function setMidiStatus(text){ document.getElementById('midi-status').textContent = text; }
+
+  function initMidi(){
+    if (midiAccess) return;
+    if (!navigator.requestMIDIAccess) { setMidiStatus('MIDI: not in this browser'); return; }
+    navigator.requestMIDIAccess().then(function(access){
+      midiAccess = access;
+      function attach(){
+        var names = [];
+        access.inputs.forEach(function(input){ input.onmidimessage = onMidiMessage; names.push(input.name); });
+        setMidiStatus(names.length ? 'MIDI: ' + names[0] + (names.length > 1 ? ' +' + (names.length - 1) : '')
+                                   : 'MIDI: no device');
+      }
+      attach();
+      access.onstatechange = attach;
+    }, function(){ setMidiStatus('MIDI: access denied'); });
+  }
+
+  function onMidiMessage(e){
+    var d = e.data, status = d[0] & 0xf0;
+    if (status === 0xB0 && d[1] === 64) { setSustainSource('midi', d[2] >= 64); return; }
+    if (!document.body.classList.contains('powered')) return;
+    if (status === 0x90 && d[2] > 0) noteOn(d[1], byOffset[d[1] - BASE_MIDI - octaveShift * 12]);
+    else if (status === 0x80 || status === 0x90) noteOff(d[1]);
+    else if (status === 0xB0 && (d[1] === 120 || d[1] === 123)) allNotesOff();
+  }
 
   // ---------- oscilloscope ----------
   function drawScope(){
@@ -1187,9 +1270,14 @@
   // ---------- computer keyboard ----------
   var heldLetters = new Set();
   window.addEventListener('keydown', function(e){
-    if (e.repeat) return;
     var tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (e.code === 'Space') {
+      e.preventDefault();   // no page scroll, no click on a focused button
+      setSustainSource('key', true);
+      return;
+    }
+    if (e.repeat) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     var k = e.code;
     if (!(k in KEY_MAP) || heldLetters.has(k)) return;
@@ -1200,6 +1288,11 @@
     noteOn(midi, byOffset[offset]);
   });
   window.addEventListener('keyup', function(e){
+    if (e.code === 'Space') {
+      e.preventDefault();
+      setSustainSource('key', false);
+      return;
+    }
     var k = e.code;
     if (!heldLetters.has(k)) return;
     heldLetters.delete(k);
@@ -1208,6 +1301,8 @@
     noteOff(midi);
   });
   window.addEventListener('blur', allNotesOff);
+
+  window.addEventListener('blur', function(){ setSustainSource('key', false); });
 
   // ---------- octave ----------
   function setOctaveShift(v){
