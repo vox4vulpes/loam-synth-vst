@@ -943,11 +943,12 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     addAndMakeVisible (scope);
 
     brandSub = subtitleText();
-    egret.onClick = [this]
+    // The safe pointer is made out here: MSVC can't take `this` inside a nested lambda's capture.
+    egret.onClick = [this, safe = juce::Component::SafePointer<LoamEightSubEditor> (this)]
     {
         brandSub = egretNameText();
         repaint (headerArea);
-        juce::Timer::callAfterDelay (2600, [safe = juce::Component::SafePointer<LoamEightSubEditor> (this)]
+        juce::Timer::callAfterDelay (2600, [safe]
         {
             if (safe != nullptr)
             {
