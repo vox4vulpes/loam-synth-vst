@@ -3,6 +3,12 @@
 Each release's notes on GitHub start with its section from this file — the
 release workflow refuses to publish a version that has no section here.
 
+## [1.4.1]
+
+### Fixed
+- VST: the sliding DELAY plate no longer covers the left end of the Delay
+  on/off switch.
+
 ## [1.4.0]
 
 ### Added

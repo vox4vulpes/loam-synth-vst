@@ -515,7 +515,8 @@ void FxUnit::paintOverChildren (juce::Graphics& g)
     if (typeAttachment == nullptr)
         return;
 
-    const auto line = title.getBounds().toFloat().withWidth (46.0f);
+    // Exactly the title's own area, so neither the plate nor the recess touches the switch.
+    const auto line = title.getBounds().toFloat().reduced (0.0f, 1.0f);
     const auto eased = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::pi * blind);   // ease in-out
 
     juce::Graphics::ScopedSaveState save (g);
@@ -529,8 +530,8 @@ void FxUnit::paintOverChildren (juce::Graphics& g)
         g.setGradientFill (juce::ColourGradient (shadow, 0.0f, line.getY(), shadow.withAlpha (0.0f), 0.0f, line.getY() + 4.0f, false));
         g.fillRoundedRectangle (line.withHeight (4.0f), 3.0f);
         g.setColour (ink);
-        g.setFont (sansFont (8.0f, true));
-        g.drawText (pingPong ? "PING-PONG" : "NORMAL", line, juce::Justification::centred, false);
+        g.setFont (sansFont (7.0f, true));
+        g.drawFittedText (pingPong ? "PING-PONG" : "NORMAL", line.toNearestInt(), juce::Justification::centred, 1, 0.8f);
     }
 
     // The plate with DELAY, sliding up and away.
