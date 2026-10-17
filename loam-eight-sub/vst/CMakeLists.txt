@@ -29,6 +29,7 @@ if(LOAM_BUILD_PLUGIN)
         IS_SYNTH TRUE
         NEEDS_MIDI_INPUT TRUE
         VST3_CATEGORIES Instrument Synth
+        ICON_BIG Resources/icon.png   # standalone app icon; source art in Resources/icon.svg
     )
 
     target_sources(LoamEightSub PRIVATE

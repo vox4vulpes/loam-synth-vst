@@ -16,25 +16,31 @@ filter (cutoff/resonance) → per-voice ADSR envelope → delay and reverb sends
 - **Oscillator** — waveform, fine tune, sub-oscillator mix
 - **Filter** — cutoff, resonance
 - **Envelope** — attack, decay, sustain, release
-- **Effects** — delay (time/feedback/mix), reverb (mix/tail size/tone)
+- **Effects** — delay (time/feedback/mix) and reverb (mix/tail size/tone),
+  each a vertical unit with its own on/off switch
 - **Presets** — pick a type (Lead / Bass / Pad / Pluck), then one of its
   versions; save your own sounds under **User** (kept in this browser)
 - **Output** — volume
 
 ## Playing it
 
-Flip the power switch, then play with `A`–`;` on your keyboard (mapped like
-a piano keyboard) or click the on-screen keys. Octave shift buttons sit next
-to the keybed.
+Flip the power switch, then play two octaves from your computer keyboard,
+tracker-style: `Z`–`M` is the lower octave (sharps on `S D G H J`), `Q`–`P`
+the upper one (sharps on `2 3 5 6 7 9 0`). Keys are matched by position, so
+any keyboard layout works. Or click the on-screen keys; the octave buttons
+shift both rows.
 
 ## VST3 plugin
 
 [`vst/`](vst/) has the same engine ported to C++/JUCE as a real VST3 +
 standalone plugin, for use in a DAW. It's a different codebase from the web
 version above (not a wrapper around it) — same signal path and parameter
-ranges, driven by MIDI. Its panel mirrors the web version: the same colour-coded
-Oscillator / Filter / Envelope / Effects / Output modules, a preset dropdown,
-a NOTE readout, and an on-screen keyboard for auditioning without a controller.
+ranges, driven by MIDI. Its window uses the same layout as the web panel: the
+scope, the Presets module (types, versions and user presets, saved as files
+under your user app-data folder in `Loam/Loam Eight Sub/Presets`), the
+Oscillator / Filter / Envelope / Output modules, switchable Delay and Reverb
+units, and an on-screen keyboard with the same two-row computer-key layout
+(in the standalone app; most DAWs keep computer keys for themselves).
 
 Like the rest of the repo, both the web version and the plugin are licensed
 under the [GNU AGPLv3](../LICENSE).

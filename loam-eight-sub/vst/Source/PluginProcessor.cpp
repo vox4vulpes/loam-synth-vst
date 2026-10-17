@@ -7,22 +7,85 @@ namespace
                     resonanceId = "resonance", attackId = "attack", decayId = "decay",
                     sustainId = "sustain", releaseId = "release", volumeId = "volume",
                     delayTimeId = "delayTime", delayFeedbackId = "delayFeedback", delayMixId = "delayMix",
-                    reverbMixId = "reverbMix", reverbSizeId = "reverbSize", reverbToneId = "reverbTone";
+                    reverbMixId = "reverbMix", reverbSizeId = "reverbSize", reverbToneId = "reverbTone",
+                    delayOnId = "delayOn", reverbOnId = "reverbOn";
 
-    // Same four presets as the web version. wave: 0 Sine, 1 Saw, 2 Square, 3 Triangle.
-    struct Preset
+    // Same factory presets as the web version (index.html, FACTORY_PRESETS).
+    // wave: 0 Sine, 1 Saw, 2 Square, 3 Triangle. Effects start on when their mix is up.
+    struct Row
     {
         const char* name;
         float wave, tune, sub, cutoff, resonance, attack, decay, sustain, release, volume,
               delayTime, delayFeedback, delayMix, reverbMix, reverbSize, reverbTone;
     };
 
-    const Preset presets[] = {
-        { "Lead",  1, 0, 0,  4200, 3, 5,   120, 80, 150, 72, 160, 20, 12, 10, 1.5f, 7000 },
-        { "Bass",  2, 0, 60, 900,  6, 2,   200, 60, 120, 78, 220, 0,  0,  5,  1.2f, 4000 },
-        { "Pad",   3, 0, 20, 1800, 1, 400, 600, 85, 900, 62, 380, 35, 28, 45, 4.5f, 5000 },
-        { "Pluck", 1, 0, 0,  3000, 8, 2,   180, 10, 200, 70, 220, 40, 22, 15, 1.8f, 6500 },
+    //                         wave tune sub cutoff reso  atk   dec   sus  rel   vol  dTime dFb dMix rMix rSize  rTone
+    const Row leadRows[] = {
+        { "Classic",      1,   0,   0,  4200,  3,    5,    120,  80,  150,  72,  160,  20, 12,  10,  1.5f,  7000 },
+        { "Square Lead",  2,   0,   0,  3200,  4,    3,    150,  75,  180,  70,  300,  30, 18,  12,  1.8f,  6500 },
+        { "Soft Sine",    0,   0,   0,  6000,  1,    40,   200,  85,  350,  70,  260,  25, 20,  25,  2.5f,  5000 },
+        { "Detuned Saw",  1,   12,  30, 5200,  2,    8,    150,  80,  220,  70,  180,  25, 15,  15,  2.0f,  7000 },
     };
+    const Row bassRows[] = {
+        { "Classic",      2,   0,   60, 900,   6,    2,    200,  60,  120,  78,  220,  0,  0,   5,   1.2f,  4000 },
+        { "Sub Sine",     0,   0,   80, 600,   1,    2,    250,  80,  100,  80,  220,  0,  0,   0,   1.0f,  3000 },
+        { "Acid",         1,   0,   0,  700,   14,   1,    160,  30,  90,   72,  330,  30, 10,  5,   1.0f,  4000 },
+        { "Round Tri",    3,   0,   50, 1400,  2,    5,    300,  70,  150,  78,  220,  0,  0,   8,   1.4f,  4500 },
+    };
+    const Row padRows[] = {
+        { "Classic",      3,   0,   20, 1800,  1,    400,  600,  85,  900,  62,  380,  35, 28,  45,  4.5f,  5000 },
+        { "Warm Saw",     1,   0,   25, 1200,  1.5f, 700,  900,  90,  1500, 58,  450,  30, 20,  50,  5.0f,  4500 },
+        { "Glass",        0,   0,   0,  9000,  1,    900,  800,  80,  2200, 60,  520,  45, 30,  60,  6.0f,  9000 },
+        { "Dark Drone",   2,   0,   60, 500,   3,    1200, 1500, 100, 2500, 60,  600,  50, 25,  55,  6.0f,  2500 },
+    };
+    const Row pluckRows[] = {
+        { "Classic",      1,   0,   0,  3000,  8,    2,    180,  10,  200,  70,  220,  40, 22,  15,  1.8f,  6500 },
+        { "Bell",         0,   0,   0,  8000,  1,    1,    600,  0,   900,  72,  280,  35, 20,  30,  3.0f,  8000 },
+        { "Kalimba",      3,   0,   0,  4000,  3,    1,    250,  0,   300,  74,  200,  30, 15,  20,  1.6f,  6000 },
+        { "Short Square", 2,   0,   20, 2200,  6,    1,    120,  0,   120,  70,  160,  45, 28,  12,  1.2f,  5000 },
+    };
+
+    LoamEightSubProcessor::Preset toPreset (const Row& r)
+    {
+        return { r.name, {
+            { waveId, r.wave }, { tuneId, r.tune }, { subId, r.sub }, { cutoffId, r.cutoff },
+            { resonanceId, r.resonance }, { attackId, r.attack }, { decayId, r.decay },
+            { sustainId, r.sustain }, { releaseId, r.release }, { volumeId, r.volume },
+            { delayTimeId, r.delayTime }, { delayFeedbackId, r.delayFeedback }, { delayMixId, r.delayMix },
+            { reverbMixId, r.reverbMix }, { reverbSizeId, r.reverbSize }, { reverbToneId, r.reverbTone },
+            { delayOnId, r.delayMix > 0 ? 1.0f : 0.0f }, { reverbOnId, r.reverbMix > 0 ? 1.0f : 0.0f },
+        } };
+    }
+
+    template <size_t N>
+    std::vector<LoamEightSubProcessor::Preset> toPresets (const Row (&rows)[N])
+    {
+        std::vector<LoamEightSubProcessor::Preset> out;
+        for (const auto& r : rows)
+            out.push_back (toPreset (r));
+        return out;
+    }
+
+    // Presets and projects saved before the effect switches existed have no
+    // delayOn/reverbOn; treat an effect as on if its mix was up, as before.
+    void addMissingSwitches (LoamEightSubProcessor::ParamValues& values)
+    {
+        auto find = [&values] (const juce::String& id) -> const float*
+        {
+            for (const auto& [key, value] : values)
+                if (key == id)
+                    return &value;
+            return nullptr;
+        };
+
+        const std::pair<const char*, const char*> switches[] = { { delayOnId, delayMixId }, { reverbOnId, reverbMixId } };
+        for (const auto& [switchId, mixId] : switches)
+            if (find (switchId) == nullptr)
+                if (const auto* mix = find (mixId))
+                    values.push_back ({ switchId, *mix > 0 ? 1.0f : 0.0f });
+    }
+
+    constexpr auto presetTag = "LoamPreset";
 }
 
 LoamEightSubProcessor::LoamEightSubProcessor()
@@ -62,6 +125,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::creat
     params.push_back (std::make_unique<Param> (juce::ParameterID (reverbMixId, 1), "Reverb Mix", Range (0.0f, 100.0f), 0.0f));
     params.push_back (std::make_unique<Param> (juce::ParameterID (reverbSizeId, 1), "Reverb Size", Range (0.3f, 6.0f), 2.2f));
     params.push_back (std::make_unique<Param> (juce::ParameterID (reverbToneId, 1), "Reverb Tone", toneRange, 6000.0f));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (delayOnId, 1), "Delay On", false));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (reverbOnId, 1), "Reverb On", false));
 
     return { params.begin(), params.end() };
 }
@@ -73,22 +138,29 @@ void LoamEightSubProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
 void LoamEightSubProcessor::pullParameters()
 {
-    engine.wave = (SynthEngine::Wave) (int) apvts.getRawParameterValue (waveId)->load();
-    engine.tuneCents = apvts.getRawParameterValue (tuneId)->load();
-    engine.subMixPct = apvts.getRawParameterValue (subId)->load();
-    engine.cutoffHz = apvts.getRawParameterValue (cutoffId)->load();
-    engine.resonanceQ = apvts.getRawParameterValue (resonanceId)->load();
-    engine.attackMs = apvts.getRawParameterValue (attackId)->load();
-    engine.decayMs = apvts.getRawParameterValue (decayId)->load();
-    engine.sustainPct = apvts.getRawParameterValue (sustainId)->load();
-    engine.releaseMs = apvts.getRawParameterValue (releaseId)->load();
-    engine.volumePct = apvts.getRawParameterValue (volumeId)->load();
-    engine.delayTimeMs = apvts.getRawParameterValue (delayTimeId)->load();
-    engine.delayFeedbackPct = apvts.getRawParameterValue (delayFeedbackId)->load();
-    engine.delayMixPct = apvts.getRawParameterValue (delayMixId)->load();
-    engine.reverbMixPct = apvts.getRawParameterValue (reverbMixId)->load();
-    engine.reverbSizeSec = apvts.getRawParameterValue (reverbSizeId)->load();
-    engine.reverbToneHz = apvts.getRawParameterValue (reverbToneId)->load();
+    auto get = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+
+    // A switched-off effect keeps its knob settings but contributes nothing;
+    // the delay's feedback goes to zero too so an old tail can't resurface.
+    const bool delayOn = get (delayOnId) > 0.5f;
+    const bool reverbOn = get (reverbOnId) > 0.5f;
+
+    engine.wave = (SynthEngine::Wave) (int) get (waveId);
+    engine.tuneCents = get (tuneId);
+    engine.subMixPct = get (subId);
+    engine.cutoffHz = get (cutoffId);
+    engine.resonanceQ = get (resonanceId);
+    engine.attackMs = get (attackId);
+    engine.decayMs = get (decayId);
+    engine.sustainPct = get (sustainId);
+    engine.releaseMs = get (releaseId);
+    engine.volumePct = get (volumeId);
+    engine.delayTimeMs = get (delayTimeId);
+    engine.delayFeedbackPct = delayOn ? get (delayFeedbackId) : 0.0f;
+    engine.delayMixPct = delayOn ? get (delayMixId) : 0.0f;
+    engine.reverbMixPct = reverbOn ? get (reverbMixId) : 0.0f;
+    engine.reverbSizeSec = get (reverbSizeId);
+    engine.reverbToneHz = get (reverbToneId);
 }
 
 void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -111,6 +183,34 @@ void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     engine.render (buffer, 0, buffer.getNumSamples());
+    pushToScope (buffer);
+}
+
+void LoamEightSubProcessor::pushToScope (const juce::AudioBuffer<float>& buffer)
+{
+    const auto numChannels = buffer.getNumChannels();
+    if (numChannels == 0)
+        return;
+
+    auto pos = scopeWritePos.load (std::memory_order_relaxed);
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float mono = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+            mono += buffer.getSample (ch, i);
+
+        scopeRing[(size_t) (pos & (scopeSize - 1))].store (mono / (float) numChannels, std::memory_order_relaxed);
+        ++pos;
+    }
+    scopeWritePos.store (pos, std::memory_order_release);
+}
+
+void LoamEightSubProcessor::copyScope (float* dest, int numSamples) const
+{
+    numSamples = juce::jmin (numSamples, scopeSize);
+    const auto end = scopeWritePos.load (std::memory_order_acquire);
+    for (int i = 0; i < numSamples; ++i)
+        dest[i] = scopeRing[(size_t) ((end - numSamples + i) & (scopeSize - 1))].load (std::memory_order_relaxed);
 }
 
 bool LoamEightSubProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -118,29 +218,33 @@ bool LoamEightSubProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
-juce::StringArray LoamEightSubProcessor::getPresetNames()
+//==============================================================================
+const juce::StringArray& LoamEightSubProcessor::getPresetTypeNames()
 {
-    juce::StringArray names;
-    for (const auto& p : presets)
-        names.add (p.name);
+    static const juce::StringArray names { "Lead", "Bass", "Pad", "Pluck" };
     return names;
 }
 
-void LoamEightSubProcessor::applyPreset (int index)
+const std::vector<LoamEightSubProcessor::Preset>& LoamEightSubProcessor::getFactoryPresets (int typeIndex)
 {
-    if (! juce::isPositiveAndBelow (index, (int) std::size (presets)))
-        return;
+    static const std::vector<Preset> lead = toPresets (leadRows), bass = toPresets (bassRows),
+                                     pad = toPresets (padRows), pluck = toPresets (pluckRows), none;
+    switch (typeIndex)
+    {
+        case 0:  return lead;
+        case 1:  return bass;
+        case 2:  return pad;
+        case 3:  return pluck;
+        default: return none;
+    }
+}
 
-    const auto& p = presets[index];
-    const std::pair<const char*, float> values[] = {
-        { waveId, p.wave }, { tuneId, p.tune }, { subId, p.sub }, { cutoffId, p.cutoff },
-        { resonanceId, p.resonance }, { attackId, p.attack }, { decayId, p.decay },
-        { sustainId, p.sustain }, { releaseId, p.release }, { volumeId, p.volume },
-        { delayTimeId, p.delayTime }, { delayFeedbackId, p.delayFeedback }, { delayMixId, p.delayMix },
-        { reverbMixId, p.reverbMix }, { reverbSizeId, p.reverbSize }, { reverbToneId, p.reverbTone },
-    };
+void LoamEightSubProcessor::applyPresetValues (const ParamValues& values)
+{
+    auto complete = values;
+    addMissingSwitches (complete);
 
-    for (const auto& [id, value] : values)
+    for (const auto& [id, value] : complete)
     {
         if (auto* param = apvts.getParameter (id))
         {
@@ -151,6 +255,83 @@ void LoamEightSubProcessor::applyPreset (int index)
     }
 }
 
+juce::File LoamEightSubProcessor::getUserPresetFolder()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+               .getChildFile ("Loam").getChildFile ("Loam Eight Sub").getChildFile ("Presets");
+}
+
+namespace
+{
+    // Finds the file holding a user preset by its display name (case-insensitive).
+    juce::File findUserPresetFile (const juce::String& name)
+    {
+        for (const auto& file : LoamEightSubProcessor::getUserPresetFolder()
+                                    .findChildFiles (juce::File::findFiles, false, "*.xml"))
+            if (auto xml = juce::XmlDocument::parse (file); xml != nullptr && xml->hasTagName (presetTag)
+                    && xml->getStringAttribute ("name").equalsIgnoreCase (name))
+                return file;
+        return {};
+    }
+}
+
+juce::StringArray LoamEightSubProcessor::getUserPresetNames() const
+{
+    juce::StringArray names;
+    for (const auto& file : getUserPresetFolder().findChildFiles (juce::File::findFiles, false, "*.xml"))
+        if (auto xml = juce::XmlDocument::parse (file); xml != nullptr && xml->hasTagName (presetTag))
+            names.add (xml->getStringAttribute ("name"));
+
+    names.sortNatural();
+    return names;
+}
+
+bool LoamEightSubProcessor::saveUserPreset (const juce::String& name)
+{
+    juce::XmlElement xml (presetTag);
+    xml.setAttribute ("name", name);
+
+    for (auto* p : getParameters())
+        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (p))
+        {
+            auto* e = xml.createNewChildElement ("PARAM");
+            e->setAttribute ("id", param->getParameterID());
+            e->setAttribute ("value", param->convertFrom0to1 (param->getValue()));
+        }
+
+    auto file = findUserPresetFile (name);
+    if (file == juce::File())
+    {
+        const auto folder = getUserPresetFolder();
+        if (! folder.createDirectory())
+            return false;
+        file = folder.getChildFile (juce::File::createLegalFileName (name) + ".xml").getNonexistentSibling();
+    }
+    return xml.writeTo (file);
+}
+
+bool LoamEightSubProcessor::loadUserPreset (const juce::String& name)
+{
+    const auto file = findUserPresetFile (name);
+    auto xml = juce::XmlDocument::parse (file);
+    if (xml == nullptr)
+        return false;
+
+    ParamValues values;
+    for (auto* e : xml->getChildWithTagNameIterator ("PARAM"))
+        values.push_back ({ e->getStringAttribute ("id"), (float) e->getDoubleAttribute ("value") });
+
+    applyPresetValues (values);
+    return true;
+}
+
+bool LoamEightSubProcessor::deleteUserPreset (const juce::String& name)
+{
+    const auto file = findUserPresetFile (name);
+    return file != juce::File() && file.deleteFile();
+}
+
+//==============================================================================
 juce::AudioProcessorEditor* LoamEightSubProcessor::createEditor()
 {
     return new LoamEightSubEditor (*this);
@@ -164,8 +345,25 @@ void LoamEightSubProcessor::getStateInformation (juce::MemoryBlock& destData)
 
 void LoamEightSubProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
-        apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (xml == nullptr)
+        return;
+
+    // Projects saved before v1.2 have no effect switches: derive them from the mix.
+    const std::pair<const char*, const char*> switches[] = { { delayOnId, delayMixId }, { reverbOnId, reverbMixId } };
+    for (const auto& [switchId, mixId] : switches)
+    {
+        if (xml->getChildByAttribute ("id", switchId) != nullptr)
+            continue;
+        if (auto* mix = xml->getChildByAttribute ("id", mixId))
+        {
+            auto* e = xml->createNewChildElement ("PARAM");
+            e->setAttribute ("id", switchId);
+            e->setAttribute ("value", mix->getDoubleAttribute ("value") > 0 ? 1.0 : 0.0);
+        }
+    }
+
+    apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 // This creates new instances of the plugin.

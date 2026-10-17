@@ -42,9 +42,12 @@ jobs:
 
       - name: Build, test and package every synth
         shell: bash
+        env:
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
           set -euo pipefail
           platform=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          version=${VERSION#v}
           mkdir -p dist stage
 
           for cmakelists in */vst/CMakeLists.txt; do
@@ -66,12 +69,12 @@ jobs:
             if [ -d "$artefacts/Standalone" ]; then cp -R "$artefacts/Standalone" "stage/$synth/"; fi
             cp "$src/LICENSE" "stage/$synth/LICENSE.txt"
 
-            (cd stage && cmake -E tar cf "../dist/$synth-$platform.zip" --format=zip "$synth")
+            (cd stage && cmake -E tar cf "../dist/$synth-$version-$platform.zip" --format=zip "$synth")
             echo "::endgroup::"
           done
 
           mkdir -p bundle && cp -R stage bundle/Loam-Synth-Bundle
-          (cd bundle && cmake -E tar cf "../dist/Loam-Synth-Bundle-$platform.zip" --format=zip Loam-Synth-Bundle)
+          (cd bundle && cmake -E tar cf "../dist/Loam-Synth-Bundle-$version-$platform.zip" --format=zip Loam-Synth-Bundle)
           ls -l dist
 
       - name: Build Windows installer
@@ -113,8 +116,8 @@ jobs:
           ## Downloads
 
           - **`Loam-Synth-Bundle-Setup-<version>.exe`** — Windows installer for every synth (recommended on Windows)
-          - **`Loam-Synth-Bundle-<platform>.zip`** — every Loam synth in one archive
-          - **`<synth>-<platform>.zip`** — a single synth
+          - **`Loam-Synth-Bundle-<version>-<platform>.zip`** — every Loam synth in one archive
+          - **`<synth>-<version>-<platform>.zip`** — a single synth
 
           Each archive holds the VST3 plugin and a standalone app for each synth.
 

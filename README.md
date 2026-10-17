@@ -17,8 +17,8 @@ More to come.
 
 Grab the latest build from [Releases](../../releases/latest):
 
-`Loam-Synth-Bundle-<platform>.zip` has every synth, or pick a single
-`<synth>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
+`Loam-Synth-Bundle-<version>-<platform>.zip` has every synth, or pick a single
+`<synth>-<version>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
 
 On Windows, `Loam-Synth-Bundle-Setup-<version>.exe` installs every synth into
 `Common Files\VST3\Loam Synth Bundle` and upgrades an older install in place.

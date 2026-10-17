@@ -1,6 +1,9 @@
 #pragma once
 
+#include <array>
 #include <atomic>
+#include <utility>
+#include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "SynthEngine.h"
@@ -38,14 +41,42 @@ public:
     juce::MidiKeyboardState keyboardState;   // on-screen keyboard in the editor
     std::atomic<int> lastNote { -1 };        // for the editor's NOTE readout
 
-    static juce::StringArray getPresetNames();
-    void applyPreset (int index);
+    //==============================================================================
+    // Presets: factory ones grouped by type with several versions each (same
+    // as the web version), plus user presets saved as XML files on disk.
+    using ParamValues = std::vector<std::pair<juce::String, float>>;
+
+    struct Preset
+    {
+        juce::String name;
+        ParamValues values;
+    };
+
+    static const juce::StringArray& getPresetTypeNames();          // Lead, Bass, Pad, Pluck
+    static const std::vector<Preset>& getFactoryPresets (int typeIndex);
+    void applyPresetValues (const ParamValues&);
+
+    static juce::File getUserPresetFolder();
+    juce::StringArray getUserPresetNames() const;
+    bool saveUserPreset (const juce::String& name);
+    bool loadUserPreset (const juce::String& name);
+    bool deleteUserPreset (const juce::String& name);
+
+    //==============================================================================
+    // Oscilloscope tap: the audio thread writes the mono output into a ring,
+    // the editor copies the most recent samples out on its timer.
+    static constexpr int scopeSize = 4096;
+    void copyScope (float* dest, int numSamples) const;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void pullParameters();
+    void pushToScope (const juce::AudioBuffer<float>&);
 
     SynthEngine engine;
+
+    std::array<std::atomic<float>, scopeSize> scopeRing {};
+    std::atomic<int> scopeWritePos { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LoamEightSubProcessor)
 };
