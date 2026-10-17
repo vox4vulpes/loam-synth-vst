@@ -227,6 +227,34 @@ int main()
         std::printf ("ok: TONE < keeps 110 Hz (RMS %.3f), TONE > cuts it (RMS %.4f)\n", lowPassed, highPassed);
     }
 
+    // Reverb TONE >: a highpass at 8 kHz on the reverb of a low note leaves far less than TONE <.
+    {
+        auto reverbRms = [] (bool highPass)
+        {
+            SynthEngine e;
+            e.prepare (44100.0, 512);
+            e.wave = SynthEngine::Wave::Sine;
+            e.reverbMixPct = 100.0f;
+            e.reverbToneHz = 8000.0f;
+            e.reverbToneHighPass = highPass;
+            e.noteOn (45, 1.0f);
+            juce::AudioBuffer<float> b (2, 512);
+            for (int block = 0; block < 20; ++block)
+                e.render (b, 0, 512);
+            e.noteOff (45);
+            for (int block = 0; block < 30; ++block)   // dry note gone after its 300 ms release: tail only
+                e.render (b, 0, 512);
+            return rms (b, 0, 0, 512);
+        };
+        const auto lp = reverbRms (false), hp = reverbRms (true);
+        if (! (lp > 1.0e-4f && hp < lp * 0.2f))
+        {
+            std::fprintf (stderr, "FAIL: reverb TONE, tail RMS lp=%f hp=%f\n", lp, hp);
+            return 1;
+        }
+        std::printf ("ok: reverb tail TONE < RMS %.4f, TONE > RMS %.5f\n", lp, hp);
+    }
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }

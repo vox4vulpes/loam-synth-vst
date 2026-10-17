@@ -870,9 +870,10 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     for (auto* k : allKnobs())
         k->attachMod (p);
 
-    // TONE on the drive units: click the label to flip lowpass / highpass.
+    // TONE on the drive units and the reverb: click the label to flip lowpass / highpass.
     satUnit.getKnobs()[1]->setLabelToggle (*p.apvts.getParameter ("satToneHp"), "TONE <", "TONE >");
     distUnit.getKnobs()[1]->setLabelToggle (*p.apvts.getParameter ("distToneHp"), "TONE <", "TONE >");
+    reverbUnit.getKnobs()[2]->setLabelToggle (*p.apvts.getParameter ("reverbToneHp"), "TONE <", "TONE >");
 
     addAndMakeVisible (delayUnit);
     addAndMakeVisible (reverbUnit);

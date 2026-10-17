@@ -9,6 +9,8 @@ void SynthEngine::prepare (double newSampleRate, int samplesPerBlock)
     z1 = z2 = 0.0;
     satTone = {};
     distTone = {};
+    reverbToneL = {};
+    reverbToneR = {};
     delayLine.reset();
     delayLine.setMaximumDelayInSamples ((int) (sampleRate * 1.0) + 4);
     delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 1 });
@@ -344,11 +346,12 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
 {
     updateFilterCoefficients();
 
+    // Reverb TONE is a filter on the reverb's output (as on the web), so the
+    // reverb itself keeps a fixed, moderate damping.
     const float sizeNorm = juce::jlimit (0.0f, 1.0f, (reverbSizeSec - 0.3f) / (6.0f - 0.3f));
-    const float toneNorm = juce::jlimit (0.0f, 1.0f, (reverbToneHz - 500.0f) / (12000.0f - 500.0f));
     juce::dsp::Reverb::Parameters rp;
     rp.roomSize = sizeNorm;
-    rp.damping = 1.0f - toneNorm;
+    rp.damping = 0.35f;
     rp.wetLevel = 1.0f;
     rp.dryLevel = 0.0f;
     rp.width = 1.0f;
@@ -449,9 +452,11 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
     juce::dsp::AudioBlock<float> reverbBlock (reverbChannels, 2, (size_t) numSamples);
     juce::dsp::ProcessContextReplacing<float> reverbContext (reverbBlock);
     reverb.process (reverbContext);
+    reverbToneL.setTone (reverbToneHz, reverbToneHighPass, sampleRate);
+    reverbToneR.setTone (reverbToneHz, reverbToneHighPass, sampleRate);
     for (int i = 0; i < numSamples; ++i)
     {
-        left[i] += reverbScratchL[(size_t) i] * reverbWetGain * masterGain;
-        right[i] += reverbScratchR[(size_t) i] * reverbWetGain * masterGain;
+        left[i] += (float) reverbToneL.process (reverbScratchL[(size_t) i]) * reverbWetGain * masterGain;
+        right[i] += (float) reverbToneR.process (reverbScratchR[(size_t) i]) * reverbWetGain * masterGain;
     }
 }

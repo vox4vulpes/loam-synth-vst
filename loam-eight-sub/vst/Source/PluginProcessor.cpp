@@ -13,7 +13,7 @@ namespace
                     modModeId = "modMode", bendRangeId = "bendRange",
                     satOnId = "satOn", satDriveId = "satDrive", satToneId = "satTone", satMixId = "satMix",
                     distOnId = "distOn", distDriveId = "distDrive", distToneId = "distTone", distMixId = "distMix",
-                    satToneHpId = "satToneHp", distToneHpId = "distToneHp";
+                    satToneHpId = "satToneHp", distToneHpId = "distToneHp", reverbToneHpId = "reverbToneHp";
 
     // Mod wheel at the top: vibrato depth in semitones, or filter opening in octaves.
     constexpr float maxVibratoSemis = 0.6f, maxFilterOctaves = 4.0f;
@@ -63,7 +63,7 @@ namespace
             { reverbMixId, r.reverbMix }, { reverbSizeId, r.reverbSize }, { reverbToneId, r.reverbTone },
             { delayOnId, r.delayMix > 0 ? 1.0f : 0.0f }, { reverbOnId, r.reverbMix > 0 ? 1.0f : 0.0f },
             { satOnId, 0.0f }, { distOnId, 0.0f },   // factory sounds are clean
-            { satToneHpId, 0.0f }, { distToneHpId, 0.0f },
+            { satToneHpId, 0.0f }, { distToneHpId, 0.0f }, { reverbToneHpId, 0.0f },
             // Every preset sets up the wheels too: VIB, +-2, nothing on CUST,
             // unless the sound says otherwise (see factoryWheels below).
             { modModeId, 0.0f }, { bendRangeId, 1.0f },
@@ -273,6 +273,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::creat
     // Tone filter type, flipped by clicking the TONE label: lowpass "TONE <" or highpass "TONE >".
     params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (satToneHpId, 1), "Saturation Tone Highpass", false));
     params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (distToneHpId, 1), "Distortion Tone Highpass", false));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (reverbToneHpId, 1), "Reverb Tone Highpass", false));
 
     // Wheels: what the mod wheel does, and how far pitch bend reaches.
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -316,6 +317,7 @@ void LoamEightSubProcessor::pullParameters()
     engine.reverbMixPct = reverbOn ? get (reverbMixId) : 0.0f;
     engine.reverbSizeSec = get (reverbSizeId);
     engine.reverbToneHz = get (reverbToneId);
+    engine.reverbToneHighPass = get (reverbToneHpId) > 0.5f;
 
     engine.saturation = { get (satOnId) > 0.5f, get (satDriveId), get (satToneId), get (satMixId), get (satToneHpId) > 0.5f };
     engine.distortion = { get (distOnId) > 0.5f, get (distDriveId), get (distToneId), get (distMixId), get (distToneHpId) > 0.5f };

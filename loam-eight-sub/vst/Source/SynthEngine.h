@@ -41,6 +41,7 @@ public:
     float reverbMixPct = 0.0f;
     float reverbSizeSec = 2.2f;
     float reverbToneHz = 6000.0f;
+    bool reverbToneHighPass = false;   // reverb TONE filter: lowpass "TONE <" or highpass "TONE >"
 
     // Portamento: while on, notes inside [portaLow, portaHigh] share one voice
     // that glides from note to note (legato: a new key while another is held
@@ -102,7 +103,7 @@ private:
         void setTone (double hz, bool highPass, double sampleRate);
         double process (double x);
     };
-    Biquad satTone, distTone;
+    Biquad satTone, distTone, reverbToneL, reverbToneR;
     float processDrive (float x, const Drive& d, bool hardClip, Biquad& tone) const;
 
     // Shared lowpass filter (RBJ biquad), recalculated once per block.

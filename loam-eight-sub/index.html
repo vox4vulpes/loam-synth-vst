@@ -742,7 +742,7 @@
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
     // Portamento: a performance setting, not part of presets.
     satDrive:30, satTone:8000, satMix:50, distDrive:40, distTone:5000, distMix:50,
-    satToneHp:false, distToneHp:false,   // tone filter type: false = lowpass "TONE <", true = highpass "TONE >"
+    satToneHp:false, distToneHp:false, reverbToneHp:false,   // tone filter type: false = lowpass "TONE <", true = highpass "TONE >"
     portaOn:false, portaTime:150, portaLow:60, portaHigh:76,
     // Wheels: what the mod wheel does, and how far pitch bend reaches (semitones).
     modMode:'vib', bendRange:2
@@ -852,7 +852,8 @@
     convolver.normalize = true;
     convolver.buffer = createReverbImpulse(audioCtx, params.reverbSize, 3.0);
     reverbToneFilter = audioCtx.createBiquadFilter();
-    reverbToneFilter.type = 'lowpass';
+    reverbToneFilter.type = params.reverbToneHp ? 'highpass' : 'lowpass';
+    reverbToneFilter.Q.value = -3.0103;   // Butterworth (Q in dB), same as the VST's reverb tone
     reverbToneFilter.frequency.value = params.reverbTone;
     reverbWetGain = audioCtx.createGain();
     reverbWetGain.gain.value = fxOn.reverb ? params.reverbMix / 100 : 0;
@@ -1302,7 +1303,7 @@
       el.querySelector('.knob-label--toggle').addEventListener('click', function(){
         params[def.toggle] = !params[def.toggle];
         renderToggle();
-        updateDrive();
+        applyToneTypes();
       });
       renderToggle();
     }
@@ -1353,7 +1354,7 @@
         clearTimeout(reverbRegenTimer);
         reverbRegenTimer = setTimeout(function(){ convolver.buffer = createReverbImpulse(audioCtx, v, 3.0); }, 150);
       } },
-    { id:'reverbTone', module:'reverb-knobs', label:'TONE', min:500, max:12000, def:6000, unit:'Hz', log:true,
+    { id:'reverbTone', module:'reverb-knobs', label:'TONE', toggle:'reverbToneHp', min:500, max:12000, def:6000, unit:'Hz', log:true,
       onInput:function(v){ params.reverbTone = v; if (reverbToneFilter) reverbToneFilter.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01); } },
     { id:'satDrive', module:'sat-knobs', label:'DRIVE', min:0, max:100, def:30, unit:'%',
       onInput:function(v){ params.satDrive = v; updateDrive(); } },
@@ -1529,6 +1530,12 @@
     st.dry.gain.setTargetAtTime(on ? 1 - m : 1, t, 0.01);
     st.wet.gain.setTargetAtTime(on ? m : 0, t, 0.01);
   }
+  // TONE labels: lowpass "<" / highpass ">" for the drive stages and the reverb.
+  function applyToneTypes(){
+    updateDrive();
+    if (reverbToneFilter) reverbToneFilter.type = params.reverbToneHp ? 'highpass' : 'lowpass';
+  }
+
   function updateDrive(){
     if (!satStage) return;
     updateStage(satStage, fxOn.sat, params.satDrive, params.satTone, params.satMix, params.satToneHp);
@@ -1573,7 +1580,7 @@
     p.delayOn = p.delayMix > 0;
     p.reverbOn = p.reverbMix > 0;
     p.satOn = p.distOn = false;   // factory sounds are clean
-    p.satToneHp = p.distToneHp = false;
+    p.satToneHp = p.distToneHp = p.reverbToneHp = false;
     // Every preset sets up the wheels too: VIB, +-2 and nothing on CUST unless
     // the sound says otherwise (see FACTORY_WHEELS).
     p.modMode = 'vib';
@@ -1681,8 +1688,9 @@
     // ...and the drive stages didn't exist at all: keep them off.
     params.satToneHp = !!p.satToneHp;
     params.distToneHp = !!p.distToneHp;
-    knobs.get('satTone').renderToggle();
-    knobs.get('distTone').renderToggle();
+    params.reverbToneHp = !!p.reverbToneHp;
+    ['satTone', 'distTone', 'reverbTone'].forEach(function(id){ knobs.get(id).renderToggle(); });
+    applyToneTypes();
     setFx('sat', !!p.satOn, false);
     setFx('dist', !!p.distOn, false);
   }
@@ -1697,6 +1705,7 @@
     p.distOn = fxOn.dist;
     p.satToneHp = params.satToneHp;
     p.distToneHp = params.distToneHp;
+    p.reverbToneHp = params.reverbToneHp;
     p.modMode = params.modMode;
     p.bendRange = params.bendRange;
     p.modMap = {};
