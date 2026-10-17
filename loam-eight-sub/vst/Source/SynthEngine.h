@@ -22,6 +22,7 @@ public:
     // lifting it releases every note whose key is no longer held.
     void setSustain (bool down);
     void render (juce::AudioBuffer<float>& buffer, int startSample, int numSamples);
+    int getNumActiveVoices() const;   // for tests
 
     // Parameters -- set these from the processor every block before calling render().
     Wave wave = Wave::Saw;
@@ -41,6 +42,14 @@ public:
     float reverbSizeSec = 2.2f;
     float reverbToneHz = 6000.0f;
 
+    // Portamento: while on, notes inside [portaLow, portaHigh] share one voice
+    // that glides from note to note (legato: a new key while another is held
+    // changes pitch without a new attack, and releasing it glides back to the
+    // key still held). Notes outside the range stay polyphonic.
+    bool portaOn = false;
+    float portaTimeMs = 150.0f;
+    int portaLow = 60, portaHigh = 76;
+
 private:
     enum class Stage { Idle, Attack, Decay, Sustain, Release };
 
@@ -48,10 +57,14 @@ private:
     {
         bool active = false;
         bool keyDown = false;   // key still held (vs. kept sounding by the pedal)
+        bool porta = false;     // the shared glide voice
         int note = -1;
         double phase = 0.0;
         double subPhase = 0.0;
         double freq = 0.0;
+        double pitch = 0.0;         // in semitones (MIDI note + tune)
+        double targetPitch = 0.0;
+        double pitchStep = 0.0;     // semitones per sample while gliding
         Stage stage = Stage::Idle;
         float envLevel = 0.0f;
         float releaseStartLevel = 0.0f;
@@ -77,4 +90,19 @@ private:
     float oscillatorSample (Wave w, double ph) const;
     void advanceEnvelope (Voice& v);
     static void startRelease (Voice& v);
+
+    // Portamento state: keys held inside the range, most recent last. A fixed
+    // array so the audio thread never allocates; the oldest key drops off if
+    // more than portaStackSize are held.
+    static constexpr int portaStackSize = 16;
+    std::array<int, portaStackSize> portaHeld {};
+    int portaHeldCount = 0;
+    int portaVoice = -1;
+    double lastPortaPitch = -1.0;
+
+    bool isPortaNote (int note) const { return portaOn && note >= portaLow && note <= portaHigh; }
+    void portaNoteOn (int note);
+    bool portaNoteOff (int note);
+    void glideTo (Voice& v, double targetPitch);
+    static double pitchToFreq (double pitch) { return 440.0 * std::exp2 ((pitch - 69.0) / 12.0); }
 };

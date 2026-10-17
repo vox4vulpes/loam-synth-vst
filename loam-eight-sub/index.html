@@ -391,6 +391,34 @@
     font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;
     color:var(--ink);
   }
+  .octave-controls{flex-wrap:wrap; row-gap:6px;}
+  .porta-ctl{display:flex; align-items:center; gap:6px; margin-left:12px; --accent:var(--coral);}
+  .porta-label{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:var(--ink);}
+  #porta-time{width:80px; accent-color:var(--coral); margin:0;}
+  .porta-readout{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink); min-width:46px;}
+  .porta-ctl.is-off #porta-time, .porta-ctl.is-off .porta-readout{opacity:.45;}
+  .porta-range{
+    position:relative; height:18px; margin-top:4px; min-width:440px;
+    background:rgba(42,36,29,.12); border-radius:4px;
+    cursor:ew-resize; touch-action:none; user-select:none;
+  }
+  .porta-range[hidden]{display:none;}
+  .porta-bar{
+    position:absolute; top:2px; bottom:2px; box-sizing:border-box;
+    background:rgba(184,85,64,.3); border:1px solid var(--coral); border-radius:3px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap;
+    font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.08em; color:var(--ink);
+    pointer-events:none;
+  }
+  .porta-bar::before, .porta-bar::after{
+    content:''; position:absolute; top:2px; bottom:2px; width:4px; border-radius:2px; background:var(--coral);
+  }
+  .porta-bar::before{left:1px;}
+  .porta-bar::after{right:1px;}
+  .porta-out{
+    position:absolute; inset:0; display:flex; align-items:center; padding:0 6px;
+    font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--ink); opacity:.7; pointer-events:none;
+  }
   .bay-status{margin-left:auto; display:flex; align-items:center; gap:14px; min-width:0;}
   .midi-status{
     font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink);
@@ -552,6 +580,13 @@
         <button id="oct-down" type="button" aria-label="Octave down">&minus;</button>
         <span class="oct-caption">OCTAVE</span>
         <button id="oct-up" type="button" aria-label="Octave up">+</button>
+        <span class="porta-ctl is-off" id="porta-ctl">
+          <span class="porta-label" id="porta-label">PORTA</span>
+          <label class="fx-switch"><input type="checkbox" id="porta-on" role="switch" aria-labelledby="porta-label"><span class="fx-track" aria-hidden="true"></span></label>
+          <label class="porta-label" for="porta-time">GLIDE</label>
+          <input type="range" id="porta-time" min="0" max="1000" step="1">
+          <span class="porta-readout" id="porta-time-readout"></span>
+        </span>
         <div class="bay-status">
           <span class="midi-status" id="midi-status"></span>
           <span class="sustain-ind" id="sustain-ind" title="Sustain pedal (or hold Space)">SUSTAIN<span class="led" aria-hidden="true"></span></span>
@@ -559,6 +594,10 @@
       </div>
       <div class="keyboard-scroll">
         <div class="keyboard" id="keyboard"></div>
+        <div class="porta-range" id="porta-range" hidden title="PORTA key range: drag either end, or click a key">
+          <div class="porta-bar" id="porta-bar"></div>
+          <span class="porta-out" id="porta-out"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -573,7 +612,9 @@
   var params = {
     wave:'sawtooth', tune:0, sub:0, cutoff:2200, resonance:1,
     attack:10, decay:150, sustain:70, release:300, volume:70,
-    delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000
+    delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
+    // Portamento: a performance setting, not part of presets.
+    portaOn:false, portaTime:150, portaLow:60, portaHigh:76
   };
   var audioCtx = null, masterFilter = null, masterGain = null, analyser = null, scopeStarted = false;
   // Effect units can be switched off without losing their knob settings.
@@ -694,15 +735,11 @@
     }
   }
 
-  function noteOn(midi, keyEl){
-    if (!audioCtx) return;
-    if (activeVoices.has(midi)) {
-      if (!sustainedNotes.has(midi)) return;   // key already held
-      sustainedNotes.delete(midi);
-      releaseVoice(midi);                      // re-strike a note the pedal was holding
-    }
+  function freqFor(midi){ return 440 * Math.pow(2, (midi - 69) / 12) * Math.pow(2, params.tune / 1200); }
+
+  // Builds one voice (oscillator + sub, envelope attack/decay) at a frequency.
+  function startVoice(freq){
     var now = audioCtx.currentTime;
-    var freq = 440 * Math.pow(2, (midi - 69) / 12) * Math.pow(2, params.tune / 1200);
 
     var osc = audioCtx.createOscillator();
     osc.type = params.wave;
@@ -735,12 +772,107 @@
     voiceGain.gain.linearRampToValueAtTime(1, now + atk);
     voiceGain.gain.linearRampToValueAtTime(sus, now + atk + dec);
 
-    activeVoices.set(midi, { osc: osc, subOsc: subOsc, voiceGain: voiceGain, keyEl: keyEl });
+    return { osc: osc, subOsc: subOsc, voiceGain: voiceGain, keyEl: null, releasing: false };
+  }
+
+  function stopVoice(v){
+    var now = audioCtx.currentTime;
+    var rel = Math.max(params.release, 1) / 1000;
+    v.releasing = true;
+    v.voiceGain.gain.cancelScheduledValues(now);
+    v.voiceGain.gain.setValueAtTime(v.voiceGain.gain.value, now);
+    v.voiceGain.gain.linearRampToValueAtTime(0.0001, now + rel);
+    v.osc.stop(now + rel + 0.03);
+    v.subOsc.stop(now + rel + 0.03);
+    v.osc.onended = function(){ v.osc.disconnect(); v.voiceGain.disconnect(); };
+    if (v.keyEl) v.keyEl.classList.remove('active');
+  }
+
+  // Exponential in Hz = even in semitones, same as the VST's glide.
+  function glideVoice(v, freq){
+    var now = audioCtx.currentTime, t = Math.max(params.portaTime, 1) / 1000;
+    [[v.osc.frequency, freq], [v.subOsc.frequency, freq / 2]].forEach(function(pair){
+      var p = pair[0];
+      if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(now);
+      else { p.cancelScheduledValues(now); p.setValueAtTime(p.value, now); }
+      p.exponentialRampToValueAtTime(pair[1], now + t);
+    });
+  }
+
+  // ---------- portamento ----------
+  // While PORTA is on, keys inside [portaLow, portaHigh] share one voice that
+  // glides between them: a new key while another is held glides without a new
+  // attack, and releasing it glides back to the key still held (most recent
+  // first). Keys outside the range stay polyphonic.
+  var portaHeld = [], portaKeyEls = new Map(), portaVoice = null, lastPortaFreq = null, portaSustained = false;
+
+  function inPortaRange(midi){
+    return params.portaOn && midi >= Math.min(params.portaLow, params.portaHigh)
+                          && midi <= Math.max(params.portaLow, params.portaHigh);
+  }
+
+  function portaNoteOn(midi, keyEl){
+    portaHeld = portaHeld.filter(function(n){ return n !== midi; });
+    portaHeld.push(midi);
+    var freq = freqFor(midi);
+
+    if (portaVoice && !portaVoice.releasing) {
+      glideVoice(portaVoice, freq);
+    } else {
+      // Start where the last glide note was, so even detached notes slide.
+      portaVoice = startVoice(lastPortaFreq || freq);
+      if (lastPortaFreq && lastPortaFreq !== freq) glideVoice(portaVoice, freq);
+    }
+    portaVoice.note = midi;
+    portaSustained = false;
+    lastPortaFreq = freq;
+
+    if (keyEl) { keyEl.classList.add('active'); portaKeyEls.set(midi, keyEl); }
+    document.getElementById('note-readout').textContent = noteName(midi);
+  }
+
+  // Returns false if the note isn't one PORTA is holding.
+  function portaNoteOff(midi){
+    var i = portaHeld.indexOf(midi);
+    if (i < 0) return false;
+    portaHeld.splice(i, 1);
+    var el = portaKeyEls.get(midi);
+    if (el) el.classList.remove('active');
+    portaKeyEls.delete(midi);
+
+    if (!portaVoice || portaVoice.releasing || portaVoice.note !== midi) return true;
+    if (portaHeld.length) {
+      var back = portaHeld[portaHeld.length - 1];
+      portaVoice.note = back;
+      lastPortaFreq = freqFor(back);
+      glideVoice(portaVoice, lastPortaFreq);
+      document.getElementById('note-readout').textContent = noteName(back);
+    } else if (sustainOn) {
+      portaSustained = true;
+    } else {
+      stopVoice(portaVoice);
+    }
+    return true;
+  }
+
+  function noteOn(midi, keyEl){
+    if (!audioCtx) return;
+    if (inPortaRange(midi)) { portaNoteOn(midi, keyEl); return; }
+    if (activeVoices.has(midi)) {
+      if (!sustainedNotes.has(midi)) return;   // key already held
+      sustainedNotes.delete(midi);
+      releaseVoice(midi);                      // re-strike a note the pedal was holding
+    }
+    var v = startVoice(freqFor(midi));
+    v.keyEl = keyEl;
+    activeVoices.set(midi, v);
     if (keyEl) keyEl.classList.add('active');
     document.getElementById('note-readout').textContent = noteName(midi);
   }
 
   function noteOff(midi){
+    if (!audioCtx) return;
+    if (portaNoteOff(midi)) return;
     if (sustainOn && activeVoices.has(midi)) {
       sustainedNotes.add(midi);
       var held = activeVoices.get(midi);
@@ -753,21 +885,18 @@
   function releaseVoice(midi){
     var v = activeVoices.get(midi);
     if (!v || !audioCtx) return;
-    var now = audioCtx.currentTime;
-    var rel = Math.max(params.release, 1) / 1000;
-    v.voiceGain.gain.cancelScheduledValues(now);
-    v.voiceGain.gain.setValueAtTime(v.voiceGain.gain.value, now);
-    v.voiceGain.gain.linearRampToValueAtTime(0.0001, now + rel);
-    v.osc.stop(now + rel + 0.03);
-    v.subOsc.stop(now + rel + 0.03);
-    v.osc.onended = function(){ v.osc.disconnect(); v.voiceGain.disconnect(); };
-    if (v.keyEl) v.keyEl.classList.remove('active');
+    stopVoice(v);
     activeVoices.delete(midi);
   }
 
   function allNotesOff(){
     sustainedNotes.clear();
     Array.from(activeVoices.keys()).forEach(releaseVoice);
+    portaHeld = [];
+    portaKeyEls.forEach(function(el){ el.classList.remove('active'); });
+    portaKeyEls.clear();
+    if (portaVoice && !portaVoice.releasing && audioCtx) stopVoice(portaVoice);
+    portaSustained = false;
   }
 
   function setSustainSource(source, down){
@@ -779,6 +908,8 @@
     if (!on) {
       sustainedNotes.forEach(releaseVoice);
       sustainedNotes.clear();
+      if (portaSustained && portaVoice && !portaVoice.releasing && !portaHeld.length) stopVoice(portaVoice);
+      portaSustained = false;
     }
   }
 
@@ -1308,7 +1439,95 @@
   function setOctaveShift(v){
     octaveShift = Math.max(-2, Math.min(2, v));
     document.getElementById('oct-readout').textContent = 3 + octaveShift;
+    renderPortaRange();
   }
+
+  // ---------- PORTA controls ----------
+  var portaCtl = document.getElementById('porta-ctl');
+  var portaOnInput = document.getElementById('porta-on');
+  var portaTimeInput = document.getElementById('porta-time');
+  var portaRangeEl = document.getElementById('porta-range');
+  var portaBar = document.getElementById('porta-bar');
+  var portaOut = document.getElementById('porta-out');
+
+  // Glide slider is logarithmic, 5 ms .. 2 s.
+  function glideFromSlider(t){ return 5 * Math.pow(400, t / 1000); }
+  function sliderFromGlide(ms){ return Math.round(1000 * Math.log(ms / 5) / Math.log(400)); }
+  function showGlide(){ document.getElementById('porta-time-readout').textContent = Math.round(params.portaTime) + ' ms'; }
+  portaTimeInput.value = sliderFromGlide(params.portaTime);
+  showGlide();
+  portaTimeInput.addEventListener('input', function(){ params.portaTime = glideFromSlider(+portaTimeInput.value); showGlide(); });
+
+  portaOnInput.addEventListener('change', function(){
+    params.portaOn = portaOnInput.checked;
+    renderPortaRange();
+  });
+
+  function keyGeom(offset){
+    var el = byOffset[offset];
+    return { left: parseFloat(el.style.left), width: parseFloat(el.style.width), black: el.classList.contains('black') };
+  }
+
+  function renderPortaRange(){
+    portaCtl.classList.toggle('is-off', !params.portaOn);
+    portaRangeEl.hidden = !params.portaOn;
+    if (!params.portaOn) return;
+
+    var low = Math.min(params.portaLow, params.portaHigh), high = Math.max(params.portaLow, params.portaHigh);
+    var first = BASE_MIDI + octaveShift * 12, last = first + KEY_RANGE;
+    var label = 'PORTA ' + noteName(low) + '\u2013' + noteName(high);
+
+    if (high < first || low > last) {
+      // Range is outside the visible octaves: point at it.
+      portaBar.hidden = true;
+      portaOut.textContent = (high < first ? '\u25C0 ' : '') + label + (low > last ? ' \u25B6' : '');
+      portaOut.style.justifyContent = high < first ? 'flex-start' : 'flex-end';
+      return;
+    }
+    portaOut.textContent = '';
+    var a = keyGeom(Math.max(low, first) - first), b = keyGeom(Math.min(high, last) - first);
+    portaBar.hidden = false;
+    portaBar.style.left = a.left + '%';
+    portaBar.style.width = (b.left + b.width - a.left) + '%';
+    portaBar.textContent = label;
+  }
+
+  // Key under a horizontal position on the strip; black keys win where they overlap.
+  function portaNoteAt(clientX){
+    var r = portaRangeEl.getBoundingClientRect();
+    var pct = (clientX - r.left) / r.width * 100;
+    var best = -1, bestBlack = false;
+    for (var o = 0; o <= KEY_RANGE; o++) {
+      var g = keyGeom(o);
+      if (pct >= g.left && pct <= g.left + g.width && (g.black || !bestBlack)) { best = o; bestBlack = g.black; }
+    }
+    if (best < 0) best = pct < 50 ? 0 : KEY_RANGE;
+    return BASE_MIDI + octaveShift * 12 + best;
+  }
+
+  var portaDragLow = null;
+  function movePortaEnd(note){
+    var low = Math.min(params.portaLow, params.portaHigh), high = Math.max(params.portaLow, params.portaHigh);
+    if (portaDragLow) low = note; else high = note;
+    if (low > high) { var t = low; low = high; high = t; portaDragLow = !portaDragLow; }
+    params.portaLow = low;
+    params.portaHigh = high;
+    renderPortaRange();
+  }
+  portaRangeEl.addEventListener('pointerdown', function(e){
+    var note = portaNoteAt(e.clientX);
+    var low = Math.min(params.portaLow, params.portaHigh), high = Math.max(params.portaLow, params.portaHigh);
+    portaDragLow = Math.abs(note - low) <= Math.abs(note - high);
+    portaRangeEl.setPointerCapture(e.pointerId);
+    movePortaEnd(note);
+  });
+  portaRangeEl.addEventListener('pointermove', function(e){
+    if (portaDragLow !== null) movePortaEnd(portaNoteAt(e.clientX));
+  });
+  ['pointerup', 'pointercancel'].forEach(function(type){
+    portaRangeEl.addEventListener(type, function(){ portaDragLow = null; });
+  });
+  renderPortaRange();
   document.getElementById('oct-down').addEventListener('click', function(){ setOctaveShift(octaveShift - 1); });
   document.getElementById('oct-up').addEventListener('click', function(){ setOctaveShift(octaveShift + 1); });
 

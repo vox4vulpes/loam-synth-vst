@@ -50,15 +50,131 @@ SynthEngine::Voice* SynthEngine::allocateVoice (int note)
 
 void SynthEngine::noteOn (int midiNote, float /*velocity*/)
 {
+    if (isPortaNote (midiNote))
+    {
+        portaNoteOn (midiNote);
+        return;
+    }
+
     auto* v = allocateVoice (midiNote);
     v->active = true;
     v->keyDown = true;
+    v->porta = false;
     v->note = midiNote;
     v->phase = 0.0;
     v->subPhase = 0.0;
-    v->freq = 440.0 * std::pow (2.0, (midiNote - 69) / 12.0) * std::pow (2.0, tuneCents / 1200.0);
+    v->pitch = v->targetPitch = midiNote + tuneCents / 100.0;
+    v->pitchStep = 0.0;
+    v->freq = pitchToFreq (v->pitch);
     v->stage = Stage::Attack;
     v->envLevel = 0.0f;
+}
+
+//==============================================================================
+void SynthEngine::glideTo (Voice& v, double target)
+{
+    v.targetPitch = target;
+    const auto samples = (double) portaTimeMs / 1000.0 * sampleRate;
+    if (samples < 1.0)
+    {
+        v.pitch = target;
+        v.pitchStep = 0.0;
+    }
+    else
+    {
+        v.pitchStep = (target - v.pitch) / samples;
+    }
+    v.freq = pitchToFreq (v.pitch);
+}
+
+void SynthEngine::portaNoteOn (int note)
+{
+    // Push onto the held stack (dropping the oldest if it's full).
+    if (portaHeldCount == portaStackSize)
+    {
+        std::copy (portaHeld.begin() + 1, portaHeld.end(), portaHeld.begin());
+        --portaHeldCount;
+    }
+    portaHeld[(size_t) portaHeldCount++] = note;
+
+    const auto target = note + tuneCents / 100.0;
+    Voice* v = (portaVoice >= 0 && voices[(size_t) portaVoice].active && voices[(size_t) portaVoice].porta)
+                   ? &voices[(size_t) portaVoice] : nullptr;
+
+    if (v != nullptr && v->stage != Stage::Release)
+    {
+        // Legato: the voice is still sounding, so just glide to the new key.
+        glideTo (*v, target);
+    }
+    else
+    {
+        // Start from where the last glide note was, so even detached notes slide.
+        const auto from = v != nullptr ? v->pitch : (lastPortaPitch >= 0.0 ? lastPortaPitch : target);
+        if (v == nullptr)
+        {
+            v = allocateVoice (note);
+            v->phase = 0.0;
+            v->subPhase = 0.0;
+            v->envLevel = 0.0f;
+        }
+        v->active = true;
+        v->porta = true;
+        v->stage = Stage::Attack;
+        v->pitch = from;
+        glideTo (*v, target);
+        portaVoice = (int) (v - voices.data());
+    }
+
+    v->note = note;
+    v->keyDown = true;
+    lastPortaPitch = target;
+}
+
+bool SynthEngine::portaNoteOff (int note)
+{
+    int index = -1;
+    for (int i = 0; i < portaHeldCount; ++i)
+        if (portaHeld[(size_t) i] == note)
+            index = i;
+    if (index < 0)
+        return false;
+
+    std::copy (portaHeld.begin() + index + 1, portaHeld.begin() + portaHeldCount, portaHeld.begin() + index);
+    --portaHeldCount;
+
+    if (portaVoice < 0)
+        return true;
+
+    auto& v = voices[(size_t) portaVoice];
+    if (! v.active || ! v.porta || v.note != note)
+        return true;   // an older key in the stack, not the one sounding
+
+    if (portaHeldCount > 0)
+    {
+        // Glide back to the most recent key still held.
+        const auto back = portaHeld[(size_t) portaHeldCount - 1];
+        v.note = back;
+        lastPortaPitch = back + tuneCents / 100.0;
+        glideTo (v, lastPortaPitch);
+    }
+    else if (sustainDown)
+    {
+        v.keyDown = false;
+    }
+    else
+    {
+        startRelease (v);
+    }
+    return true;
+}
+
+int SynthEngine::getNumActiveVoices() const
+{
+    int n = 0;
+    for (const auto& v : voices)
+        if (v.active)
+            ++n;
+    return n;
 }
 
 void SynthEngine::startRelease (Voice& v)
@@ -72,6 +188,9 @@ void SynthEngine::startRelease (Voice& v)
 
 void SynthEngine::noteOff (int midiNote)
 {
+    if (portaNoteOff (midiNote))
+        return;
+
     if (auto* v = findVoiceForNote (midiNote))
     {
         if (sustainDown)
@@ -95,6 +214,7 @@ void SynthEngine::setSustain (bool down)
 
 void SynthEngine::allNotesOff()
 {
+    portaHeldCount = 0;
     for (auto& v : voices)
         if (v.active)
             startRelease (v);
@@ -200,6 +320,17 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
         {
             if (! v.active)
                 continue;
+
+            if (v.pitchStep != 0.0)
+            {
+                v.pitch += v.pitchStep;
+                if ((v.pitchStep > 0.0 && v.pitch >= v.targetPitch) || (v.pitchStep < 0.0 && v.pitch <= v.targetPitch))
+                {
+                    v.pitch = v.targetPitch;
+                    v.pitchStep = 0.0;
+                }
+                v.freq = pitchToFreq (v.pitch);
+            }
 
             const double dPhase = v.freq / sampleRate;
             const double dSubPhase = (v.freq * 0.5) / sampleRate;

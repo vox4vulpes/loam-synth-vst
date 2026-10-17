@@ -35,6 +35,15 @@ allow MIDI access, and play — notes and the sustain pedal (CC 64) both
 respond. The VST takes the same MIDI from your DAW, and its standalone app
 also uses `Space` as the pedal.
 
+**PORTA** (by the octave buttons) turns on portamento: keys inside a range
+share one voice that glides between them — play a new key while holding
+another and the pitch slides without a new attack; let go and it slides back
+to the key still held. Keys outside the range stay polyphonic, so one hand
+can hold chords while the other plays a gliding line. **GLIDE** sets the
+slide time (5 ms – 2 s), and the strip under the keys sets the range: drag
+either end, or click a key to move the nearer end. PORTA is a playing
+setting, so presets don't change it.
+
 ## VST3 plugin
 
 [`vst/`](vst/) has the same engine ported to C++/JUCE as a real VST3 +

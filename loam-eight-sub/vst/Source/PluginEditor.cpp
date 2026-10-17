@@ -412,6 +412,105 @@ void LoamKeyboard::drawBlackNote (int midiNoteNumber, juce::Graphics& g, juce::R
 }
 
 //==============================================================================
+PortaRangeStrip::PortaRangeStrip (juce::AudioProcessorValueTreeState& state, LoamKeyboard& kb)
+    : apvts (state), keyboard (kb),
+      lowParam (state.getParameter ("portaLow")), highParam (state.getParameter ("portaHigh"))
+{
+    setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
+}
+
+int PortaRangeStrip::noteAt (float x) const
+{
+    // Probe the keyboard just below the black keys' tips so either colour can be picked.
+    const auto kx = x + (float) (getX() - keyboard.getX());
+    return keyboard.getNoteAndVelocityAtPosition ({ kx, (float) keyboard.getHeight() * 0.4f }).note;
+}
+
+void PortaRangeStrip::moveEnd (int note)
+{
+    if (note < 0)
+        return;
+
+    auto low = (int) lowParam->convertFrom0to1 (lowParam->getValue());
+    auto high = (int) highParam->convertFrom0to1 (highParam->getValue());
+    if (draggingLow) low = note; else high = note;
+    if (low > high)
+    {
+        std::swap (low, high);
+        draggingLow = ! draggingLow;   // keep dragging the same edge after crossing over
+    }
+    lowParam->setValueNotifyingHost (lowParam->convertTo0to1 ((float) low));
+    highParam->setValueNotifyingHost (highParam->convertTo0to1 ((float) high));
+    repaint();
+}
+
+void PortaRangeStrip::mouseDown (const juce::MouseEvent& e)
+{
+    const auto note = noteAt (e.position.x);
+    if (note < 0)
+        return;
+
+    const auto low = (int) lowParam->convertFrom0to1 (lowParam->getValue());
+    const auto high = (int) highParam->convertFrom0to1 (highParam->getValue());
+    draggingLow = std::abs (note - low) <= std::abs (note - high);
+
+    lowParam->beginChangeGesture();
+    highParam->beginChangeGesture();
+    moveEnd (note);
+}
+
+void PortaRangeStrip::mouseDrag (const juce::MouseEvent& e)
+{
+    moveEnd (noteAt (e.position.x));
+}
+
+void PortaRangeStrip::mouseUp (const juce::MouseEvent&)
+{
+    lowParam->endChangeGesture();
+    highParam->endChangeGesture();
+}
+
+void PortaRangeStrip::paint (juce::Graphics& g)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    g.setColour (ink.withAlpha (0.12f));
+    g.fillRoundedRectangle (bounds, 4.0f);
+
+    const auto low = (int) lowParam->convertFrom0to1 (lowParam->getValue());
+    const auto high = (int) highParam->convertFrom0to1 (highParam->getValue());
+    const auto first = keyboard.getBaseNote(), last = first + LoamKeyboard::numKeys - 1;
+    const auto label = juce::MidiMessage::getMidiNoteName (low, true, true, 4) + utf8 ("â")
+                     + juce::MidiMessage::getMidiNoteName (high, true, true, 4);
+
+    g.setFont (monoFont (9.0f).withExtraKerningFactor (0.08f));
+
+    if (high < first || low > last)
+    {
+        // Range is outside the visible octaves: point at it.
+        g.setColour (ink.withAlpha (0.7f));
+        g.drawText ((high < first ? utf8 ("â PORTA ") : juce::String ("PORTA ")) + label
+                        + (low > last ? utf8 (" â¶") : juce::String()),
+                    bounds.reduced (6.0f, 0.0f), high < first ? juce::Justification::centredLeft : juce::Justification::centredRight);
+        return;
+    }
+
+    const auto dx = (float) (keyboard.getX() - getX());
+    const auto left = keyboard.getRectangleForKey (juce::jmax (low, first)).getX() + dx;
+    const auto right = keyboard.getRectangleForKey (juce::jmin (high, last)).getRight() + dx;
+    const auto bar = juce::Rectangle<float> (left, bounds.getY() + 2.0f, right - left, bounds.getHeight() - 4.0f);
+
+    g.setColour (coral.withAlpha (0.3f));
+    g.fillRoundedRectangle (bar, 3.0f);
+    g.setColour (coral);
+    g.drawRoundedRectangle (bar, 3.0f, 1.0f);
+    for (auto x : { bar.getX() + 1.0f, bar.getRight() - 5.0f })
+        g.fillRoundedRectangle ({ x, bar.getY() + 2.0f, 4.0f, bar.getHeight() - 4.0f }, 2.0f);
+
+    g.setColour (ink);
+    g.drawText ("PORTA " + label, bar, juce::Justification::centred, false);
+}
+
+//==============================================================================
 LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     : AudioProcessorEditor (p),
       audioProcessor (p),
@@ -432,7 +531,10 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
                   { std::make_unique<LoamKnob> (p.apvts, "reverbMix", "Mix", lavender, "%"),
                     std::make_unique<LoamKnob> (p.apvts, "reverbSize", "Size", lavender, "s", 1),
                     std::make_unique<LoamKnob> (p.apvts, "reverbTone", "Tone", lavender, "Hz") }),
-      keyboard (p.keyboardState)
+      keyboard (p.keyboardState),
+      portaToggleAttachment (p.apvts, "portaOn", portaToggle),
+      glideAttachment (p.apvts, "portaTime", glideSlider),
+      portaStrip (p.apvts, keyboard)
 {
     setLookAndFeel (&lnf);
     addAndMakeVisible (scope);
@@ -522,6 +624,37 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     addAndMakeVisible (octaveDown);
     addAndMakeVisible (octaveLabel);
     addAndMakeVisible (octaveUp);
+
+    // ---- portamento: switch + glide time above the keys, range strip below them
+    for (auto [l, text] : { std::pair { &portaLabel, "PORTA" }, std::pair { &glideLabel, "GLIDE" } })
+    {
+        l->setText (text, juce::dontSendNotification);
+        l->setFont (monoFont (10.0f).withExtraKerningFactor (0.12f));
+        l->setColour (juce::Label::textColourId, ink);
+        l->setJustificationType (juce::Justification::centredRight);
+        l->setBorderSize ({});
+        addAndMakeVisible (*l);
+    }
+    portaToggle.setColour (juce::ToggleButton::tickColourId, coral);
+    portaToggle.setWantsKeyboardFocus (false);
+    portaToggle.setTitle ("Portamento on");
+    addAndMakeVisible (portaToggle);
+
+    glideSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    glideSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    glideSlider.setColour (juce::Slider::backgroundColourId, ink.withAlpha (0.2f));
+    glideSlider.setColour (juce::Slider::trackColourId, coral);
+    glideSlider.setColour (juce::Slider::thumbColourId, panelRaised);
+    glideSlider.setWantsKeyboardFocus (false);
+    glideSlider.setDoubleClickReturnValue (true, 150.0);
+    glideSlider.onValueChange = [this] { glideReadout.setText (juce::String (juce::roundToInt (glideSlider.getValue())) + " ms", juce::dontSendNotification); };
+    glideSlider.onValueChange();
+    addAndMakeVisible (glideSlider);
+    glideReadout.setFont (monoFont (10.0f));
+    glideReadout.setColour (juce::Label::textColourId, ink);
+    glideReadout.setBorderSize ({});
+    addAndMakeVisible (glideReadout);
+    addChildComponent (portaStrip);
 
     // Buttons shouldn't steal focus from the keyboard, or computer keys stop playing.
     for (auto& b : presetTypeButtons) b.setWantsKeyboardFocus (false);
@@ -701,6 +834,12 @@ void LoamEightSubEditor::timerCallback()
         shownNote = note;
         repaint (headerArea);
     }
+
+    // PORTA shows its range strip (and makes room for it) only while it's on.
+    if (portaToggle.getToggleState() != portaShown)
+        resized();
+    if (portaShown)
+        portaStrip.repaint();
 
     if (const auto pedal = audioProcessor.sustainActive.load(); pedal != shownSustain)
     {
@@ -901,7 +1040,24 @@ void LoamEightSubEditor::resized()
     octaveLabel.setBounds (octaveRow.removeFromLeft (64));
     octaveUp.setBounds (octaveRow.removeFromLeft (28));
     sustainLight = octaveRow.removeFromRight (90);
+    octaveRow.removeFromLeft (12);
+    portaLabel.setBounds (octaveRow.removeFromLeft (40));
+    portaToggle.setBounds (octaveRow.removeFromLeft (36));
+    octaveRow.removeFromLeft (6);
+    glideLabel.setBounds (octaveRow.removeFromLeft (38));
+    glideSlider.setBounds (octaveRow.removeFromLeft (80).reduced (4, 0));
+    glideReadout.setBounds (octaveRow.removeFromLeft (50));
     kb.removeFromTop (6);
+
+    portaShown = portaToggle.getToggleState();
+    portaStrip.setVisible (portaShown);
+    glideSlider.setAlpha (portaShown ? 1.0f : 0.45f);
+    glideReadout.setAlpha (portaShown ? 1.0f : 0.45f);
+    if (portaShown)
+    {
+        portaStrip.setBounds (kb.removeFromBottom (18));
+        kb.removeFromBottom (4);
+    }
     keyboard.setBounds (kb);
     keyboard.setKeyWidth ((float) kb.getWidth() / 17.0f);   // 17 white keys, C to E two octaves up
 }

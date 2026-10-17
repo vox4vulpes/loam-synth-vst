@@ -83,6 +83,68 @@ int main()
     }
     std::printf ("ok: pedal lifted RMS=%f\n", afterPedalLevel);
 
+    // Portamento: keys inside the range share one gliding voice.
+    {
+        SynthEngine porta;
+        porta.prepare (44100.0, 512);
+        porta.wave = SynthEngine::Wave::Sine;
+        porta.cutoffHz = 12000.0f;
+        porta.portaOn = true;
+        porta.portaLow = 60;
+        porta.portaHigh = 72;
+        porta.portaTimeMs = 100.0f;
+
+        // Rising zero crossings of the left channel over several blocks -> Hz.
+        auto measureHz = [&porta] (int blocks)
+        {
+            juce::AudioBuffer<float> b (2, 512);
+            int crossings = 0;
+            float prev = 0.0f;
+            for (int block = 0; block < blocks; ++block)
+            {
+                porta.render (b, 0, 512);
+                const auto* d = b.getReadPointer (0);
+                for (int i = 0; i < 512; ++i)
+                {
+                    if (prev < 0.0f && d[i] >= 0.0f) ++crossings;
+                    prev = d[i];
+                }
+            }
+            return crossings * 44100.0 / (blocks * 512.0);
+        };
+
+        porta.noteOn (60, 1.0f);
+        measureHz (20);
+        porta.noteOn (72, 1.0f);              // legato while 60 is held
+        measureHz (20);                       // ~230 ms: glide done
+        const auto upperHz = measureHz (20);
+        if (porta.getNumActiveVoices() != 1 || std::abs (upperHz - 523.25) > 15.0)
+        {
+            std::fprintf (stderr, "FAIL: legato glide, voices=%d Hz=%f\n", porta.getNumActiveVoices(), upperHz);
+            return 1;
+        }
+        std::printf ("ok: legato glide to C5, one voice, %.1f Hz\n", upperHz);
+
+        porta.noteOn (40, 1.0f);              // outside the range: its own voice
+        if (porta.getNumActiveVoices() != 2)
+        {
+            std::fprintf (stderr, "FAIL: note outside range should add a voice, voices=%d\n", porta.getNumActiveVoices());
+            return 1;
+        }
+        porta.noteOff (40);
+
+        porta.noteOff (72);                   // glide back to the held C4
+        measureHz (60);                       // let the low note release fully
+        porta.portaOn = false;                // measure only the glide voice now
+        const auto backHz = measureHz (20);
+        if (std::abs (backHz - 261.63) > 10.0)
+        {
+            std::fprintf (stderr, "FAIL: releasing the top key should glide back to C4, Hz=%f\n", backHz);
+            return 1;
+        }
+        std::printf ("ok: glided back to C4, %.1f Hz\n", backHz);
+    }
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }

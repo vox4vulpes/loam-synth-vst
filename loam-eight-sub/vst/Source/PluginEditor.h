@@ -125,6 +125,29 @@ private:
     bool spaceDown = false;
 };
 
+// Strip under the keyboard showing which keys PORTA glides on. Drag either
+// end (or click a key) to move the nearer end of the range.
+class PortaRangeStrip : public juce::Component
+{
+public:
+    PortaRangeStrip (juce::AudioProcessorValueTreeState&, LoamKeyboard&);
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+private:
+    int noteAt (float x) const;
+    void moveEnd (int note);
+
+    juce::AudioProcessorValueTreeState& apvts;
+    LoamKeyboard& keyboard;
+    juce::RangedAudioParameter* lowParam = nullptr;
+    juce::RangedAudioParameter* highParam = nullptr;
+    bool draggingLow = false;
+};
+
 class LoamEightSubEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
@@ -182,6 +205,14 @@ private:
     juce::TextButton octaveDown { "-" }, octaveUp { "+" };
     juce::Label octaveLabel;
     int octaveShift = 0;
+
+    juce::Label portaLabel, glideLabel, glideReadout;
+    juce::ToggleButton portaToggle;
+    juce::AudioProcessorValueTreeState::ButtonAttachment portaToggleAttachment;
+    juce::Slider glideSlider;
+    juce::AudioProcessorValueTreeState::SliderAttachment glideAttachment;
+    PortaRangeStrip portaStrip;
+    bool portaShown = false;
     bool keyboardFocused = false;
 
     Module presetsModule { "Presets",    LoamColours::sage,     {} };

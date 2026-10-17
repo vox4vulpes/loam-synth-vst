@@ -8,7 +8,8 @@ namespace
                     sustainId = "sustain", releaseId = "release", volumeId = "volume",
                     delayTimeId = "delayTime", delayFeedbackId = "delayFeedback", delayMixId = "delayMix",
                     reverbMixId = "reverbMix", reverbSizeId = "reverbSize", reverbToneId = "reverbTone",
-                    delayOnId = "delayOn", reverbOnId = "reverbOn";
+                    delayOnId = "delayOn", reverbOnId = "reverbOn",
+                    portaOnId = "portaOn", portaTimeId = "portaTime", portaLowId = "portaLow", portaHighId = "portaHigh";
 
     // Same factory presets as the web version (index.html, FACTORY_PRESETS).
     // wave: 0 Sine, 1 Saw, 2 Square, 3 Triangle. Effects start on when their mix is up.
@@ -128,6 +129,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::creat
     params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (delayOnId, 1), "Delay On", false));
     params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (reverbOnId, 1), "Reverb On", false));
 
+    // Portamento: a performance setting, so presets leave it alone.
+    Range glideRange (5.0f, 2000.0f);
+    glideRange.setSkewForCentre (150.0f);
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (portaOnId, 1), "Porta On", false));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (portaTimeId, 1), "Glide Time", glideRange, 150.0f));
+    params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaLowId, 1), "Porta Low Key", 0, 127, 60));
+    params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaHighId, 1), "Porta High Key", 0, 127, 76));
+
     return { params.begin(), params.end() };
 }
 
@@ -161,6 +170,12 @@ void LoamEightSubProcessor::pullParameters()
     engine.reverbMixPct = reverbOn ? get (reverbMixId) : 0.0f;
     engine.reverbSizeSec = get (reverbSizeId);
     engine.reverbToneHz = get (reverbToneId);
+
+    const auto low = (int) get (portaLowId), high = (int) get (portaHighId);
+    engine.portaOn = get (portaOnId) > 0.5f;
+    engine.portaTimeMs = get (portaTimeId);
+    engine.portaLow = juce::jmin (low, high);
+    engine.portaHigh = juce::jmax (low, high);
 }
 
 void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -302,7 +317,8 @@ bool LoamEightSubProcessor::saveUserPreset (const juce::String& name)
     xml.setAttribute ("name", name);
 
     for (auto* p : getParameters())
-        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (p))
+        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (p);
+            param != nullptr && ! param->getParameterID().startsWith ("porta"))   // performance setting, not part of a sound
         {
             auto* e = xml.createNewChildElement ("PARAM");
             e->setAttribute ("id", param->getParameterID());
