@@ -34,6 +34,10 @@ release workflow refuses to publish a version that has no section here.
   Tone and Mix and its own on/off switch. They sit after the filter and
   before delay and reverb. Factory presets leave them off; user presets save
   them. The Effects module turns red on the Drive page.
+- On the Drive page, click a **TONE** label to switch its filter between
+  lowpass (**TONE <**, cuts the fizz) and highpass (**TONE >**, cuts the low
+  end of the drive). Both are 12 dB/oct Butterworth filters, identical in the
+  VST and on the web.
 
 ## [1.3.0]
 

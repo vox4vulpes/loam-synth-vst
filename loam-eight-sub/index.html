@@ -373,6 +373,12 @@
   .mod-dot--green{background:var(--mod-green);}
   body.mod-custom .knob.is-bound .mod-dot{display:block;}
   .knob.is-modded .knob-cap{cursor:default;}
+  /* TONE on the drive units: the label switches lowpass (<) / highpass (>). */
+  button.knob-label--toggle{
+    background:none; border:none; padding:0 2px; cursor:pointer; font:inherit;
+    font-size:9.5px; font-weight:600; letter-spacing:.05em; color:var(--accent); border-radius:4px;
+  }
+  button.knob-label--toggle:hover{background:rgba(42,36,29,.08);}
   .knob-dial{
     width:56px; height:56px; border-radius:50%;
     background:conic-gradient(from 135deg, var(--groove-dark) 0deg 270deg, transparent 270deg 360deg);
@@ -736,6 +742,7 @@
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
     // Portamento: a performance setting, not part of presets.
     satDrive:30, satTone:8000, satMix:50, distDrive:40, distTone:5000, distMix:50,
+    satToneHp:false, distToneHp:false,   // tone filter type: false = lowpass "TONE <", true = highpass "TONE >"
     portaOn:false, portaTime:150, portaLow:60, portaHigh:76,
     // Wheels: what the mod wheel does, and how far pitch bend reaches (semitones).
     modMode:'vib', bendRange:2
@@ -1164,7 +1171,8 @@
       '<button class="mod-btn" type="button" data-state="off"></button>' +
       '<div class="knob-dial"><div class="knob-cap"><div class="knob-pointer"></div></div>' +
       '<span class="mod-dot mod-dot--red"></span><span class="mod-dot mod-dot--green"></span></div>' +
-      '<div class="knob-label">' + def.label + '</div>' +
+      (def.toggle ? '<button type="button" class="knob-label knob-label--toggle" title="Click to switch the tone filter: &lt; lowpass, &gt; highpass"></button>'
+                  : '<div class="knob-label">' + def.label + '</div>') +
       '<div class="knob-readout"></div>';
 
     var cap = el.querySelector('.knob-cap');
@@ -1283,7 +1291,24 @@
     });
 
     render();
+    // A label that toggles a setting (TONE: lowpass "<" / highpass ">").
+    function renderToggle(){
+      if (!def.toggle) return;
+      var btn = el.querySelector('.knob-label--toggle');
+      btn.textContent = def.label + (params[def.toggle] ? ' >' : ' <');
+      btn.setAttribute('aria-label', def.label + ' filter: ' + (params[def.toggle] ? 'highpass' : 'lowpass'));
+    }
+    if (def.toggle) {
+      el.querySelector('.knob-label--toggle').addEventListener('click', function(){
+        params[def.toggle] = !params[def.toggle];
+        renderToggle();
+        updateDrive();
+      });
+      renderToggle();
+    }
+
     knobs.set(def.id, {
+      renderToggle: renderToggle,
       setValue: setValue,
       getValue: function(){ return value; },
       toT: valueToT,
@@ -1332,13 +1357,13 @@
       onInput:function(v){ params.reverbTone = v; if (reverbToneFilter) reverbToneFilter.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01); } },
     { id:'satDrive', module:'sat-knobs', label:'DRIVE', min:0, max:100, def:30, unit:'%',
       onInput:function(v){ params.satDrive = v; updateDrive(); } },
-    { id:'satTone', module:'sat-knobs', label:'TONE', min:500, max:12000, def:8000, unit:'Hz', log:true,
+    { id:'satTone', module:'sat-knobs', label:'TONE', toggle:'satToneHp', min:500, max:12000, def:8000, unit:'Hz', log:true,
       onInput:function(v){ params.satTone = v; updateDrive(); } },
     { id:'satMix', module:'sat-knobs', label:'MIX', min:0, max:100, def:50, unit:'%',
       onInput:function(v){ params.satMix = v; updateDrive(); } },
     { id:'distDrive', module:'dist-knobs', label:'DRIVE', min:0, max:100, def:40, unit:'%',
       onInput:function(v){ params.distDrive = v; updateDrive(); } },
-    { id:'distTone', module:'dist-knobs', label:'TONE', min:500, max:12000, def:5000, unit:'Hz', log:true,
+    { id:'distTone', module:'dist-knobs', label:'TONE', toggle:'distToneHp', min:500, max:12000, def:5000, unit:'Hz', log:true,
       onInput:function(v){ params.distTone = v; updateDrive(); } },
     { id:'distMix', module:'dist-knobs', label:'MIX', min:0, max:100, def:50, unit:'%',
       onInput:function(v){ params.distMix = v; updateDrive(); } }
@@ -1488,14 +1513,17 @@
     st.shaper.oversample = '2x';
     st.tone = audioCtx.createBiquadFilter();
     st.tone.type = 'lowpass';
-    st.tone.Q.value = 0.5;
+    // Butterworth: Web Audio takes lowpass/highpass Q in dB; -3.01 dB = Q 1/sqrt(2),
+    // the same 12 dB/oct filter as the VST's drive tone.
+    st.tone.Q.value = -3.0103;
     st.wet = audioCtx.createGain();
     input.connect(st.dry); st.dry.connect(st.out);
     input.connect(st.shaper); st.shaper.connect(st.tone); st.tone.connect(st.wet); st.wet.connect(st.out);
     return st;
   }
-  function updateStage(st, on, drive, tone, mix){
+  function updateStage(st, on, drive, tone, mix, highPass){
     var t = audioCtx.currentTime, m = mix / 100;
+    st.tone.type = highPass ? 'highpass' : 'lowpass';
     if (st.drive !== drive) { st.shaper.curve = driveCurve(drive, st.hard); st.drive = drive; }
     st.tone.frequency.setTargetAtTime(tone, t, 0.01);
     st.dry.gain.setTargetAtTime(on ? 1 - m : 1, t, 0.01);
@@ -1503,8 +1531,8 @@
   }
   function updateDrive(){
     if (!satStage) return;
-    updateStage(satStage, fxOn.sat, params.satDrive, params.satTone, params.satMix);
-    updateStage(distStage, fxOn.dist, params.distDrive, params.distTone, params.distMix);
+    updateStage(satStage, fxOn.sat, params.satDrive, params.satTone, params.satMix, params.satToneHp);
+    updateStage(distStage, fxOn.dist, params.distDrive, params.distTone, params.distMix, params.distToneHp);
   }
 
   // ---------- effects pages: Time (delay, reverb) and Drive (saturation, distortion) ----------
@@ -1545,6 +1573,7 @@
     p.delayOn = p.delayMix > 0;
     p.reverbOn = p.reverbMix > 0;
     p.satOn = p.distOn = false;   // factory sounds are clean
+    p.satToneHp = p.distToneHp = false;
     // Every preset sets up the wheels too: VIB, +-2 and nothing on CUST unless
     // the sound says otherwise (see FACTORY_WHEELS).
     p.modMode = 'vib';
@@ -1650,6 +1679,10 @@
     setFx('delay', p.delayOn !== undefined ? !!p.delayOn : p.delayMix > 0, false);
     setFx('reverb', p.reverbOn !== undefined ? !!p.reverbOn : p.reverbMix > 0, false);
     // ...and the drive stages didn't exist at all: keep them off.
+    params.satToneHp = !!p.satToneHp;
+    params.distToneHp = !!p.distToneHp;
+    knobs.get('satTone').renderToggle();
+    knobs.get('distTone').renderToggle();
     setFx('sat', !!p.satOn, false);
     setFx('dist', !!p.distOn, false);
   }
@@ -1662,6 +1695,8 @@
     p.reverbOn = fxOn.reverb;
     p.satOn = fxOn.sat;
     p.distOn = fxOn.dist;
+    p.satToneHp = params.satToneHp;
+    p.distToneHp = params.distToneHp;
     p.modMode = params.modMode;
     p.bendRange = params.bendRange;
     p.modMap = {};

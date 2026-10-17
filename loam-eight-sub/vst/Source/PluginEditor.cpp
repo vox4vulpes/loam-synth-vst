@@ -325,10 +325,27 @@ void LoamKnob::paintOverChildren (juce::Graphics& g)
     }
 }
 
+void LoamKnob::setLabelToggle (juce::RangedAudioParameter& toggleParam, const juce::String& offText, const juce::String& onText)
+{
+    labelOff = offText;
+    labelOn = onText;
+    labelToggle = std::make_unique<juce::ParameterAttachment> (toggleParam, [this] (float v)
+    {
+        labelOnState = v > 0.5f;
+        label.setText (labelOnState ? labelOn : labelOff, juce::dontSendNotification);
+    });
+    labelToggle->sendInitialUpdate();
+
+    label.setInterceptsMouseClicks (true, false);
+    label.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    label.setTooltip ("Click to switch the tone filter: < lowpass, > highpass");
+    label.addMouseListener (this, false);
+}
+
 void LoamKnob::mouseDown (const juce::MouseEvent& e)
 {
     draggingDot = 0;
-    if (! modded)
+    if (e.eventComponent != this || ! modded)
         return;
     const auto b = processor->getModBinding (paramId);
     const auto dRed = e.position.getDistanceFrom (dotPosition (b.red));
@@ -339,7 +356,7 @@ void LoamKnob::mouseDown (const juce::MouseEvent& e)
 
 void LoamKnob::mouseDrag (const juce::MouseEvent& e)
 {
-    if (draggingDot == 0)
+    if (e.eventComponent != this || draggingDot == 0)
         return;
 
     const auto centre = dialBounds().toFloat().getCentre();
@@ -354,9 +371,11 @@ void LoamKnob::mouseDrag (const juce::MouseEvent& e)
     repaint();
 }
 
-void LoamKnob::mouseUp (const juce::MouseEvent&)
+void LoamKnob::mouseUp (const juce::MouseEvent& e)
 {
     draggingDot = 0;
+    if (e.eventComponent == &label && labelToggle != nullptr && label.contains (e.getEventRelativeTo (&label).getPosition()))
+        labelToggle->setValueAsCompleteGesture (labelOnState ? 0.0f : 1.0f);
 }
 
 //==============================================================================
@@ -850,6 +869,10 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
         addAndMakeVisible (*k);
     for (auto* k : allKnobs())
         k->attachMod (p);
+
+    // TONE on the drive units: click the label to flip lowpass / highpass.
+    satUnit.getKnobs()[1]->setLabelToggle (*p.apvts.getParameter ("satToneHp"), "TONE <", "TONE >");
+    distUnit.getKnobs()[1]->setLabelToggle (*p.apvts.getParameter ("distToneHp"), "TONE <", "TONE >");
 
     addAndMakeVisible (delayUnit);
     addAndMakeVisible (reverbUnit);

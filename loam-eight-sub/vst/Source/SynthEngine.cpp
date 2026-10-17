@@ -7,7 +7,8 @@ void SynthEngine::prepare (double newSampleRate, int samplesPerBlock)
         v = Voice {};
 
     z1 = z2 = 0.0;
-    satToneState = distToneState = 0.0;
+    satTone = {};
+    distTone = {};
     delayLine.reset();
     delayLine.setMaximumDelayInSamples ((int) (sampleRate * 1.0) + 4);
     delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 1 });
@@ -178,7 +179,38 @@ int SynthEngine::getNumActiveVoices() const
     return n;
 }
 
-float SynthEngine::processDrive (float x, const Drive& d, bool hardClip, double toneCoef, double& toneState) const
+// RBJ cookbook lowpass/highpass with Q = 1/sqrt(2) (Butterworth). The web's
+// BiquadFilterNode uses the same formula with Q given in dB, so it sets -3.01 dB.
+void SynthEngine::Biquad::setTone (double hz, bool highPass, double sr)
+{
+    const auto w0 = juce::MathConstants<double>::twoPi * juce::jlimit (20.0, 0.45 * sr, hz) / sr;
+    const auto cosW = std::cos (w0);
+    const auto a = std::sin (w0) / (2.0 * 0.7071067811865476);   // alpha for Q = 1/sqrt(2)
+    const auto a0 = 1.0 + a;
+    if (highPass)
+    {
+        b0 = (1.0 + cosW) / 2.0 / a0;
+        b1 = -(1.0 + cosW) / a0;
+    }
+    else
+    {
+        b0 = (1.0 - cosW) / 2.0 / a0;
+        b1 = (1.0 - cosW) / a0;
+    }
+    b2 = b0;
+    a1 = -2.0 * cosW / a0;
+    a2 = (1.0 - a) / a0;
+}
+
+double SynthEngine::Biquad::process (double x)
+{
+    const auto y = b0 * x + z1;
+    z1 = b1 * x + z2 - a1 * y;
+    z2 = b2 * x - a2 * y;
+    return y;
+}
+
+float SynthEngine::processDrive (float x, const Drive& d, bool hardClip, Biquad& tone) const
 {
     if (! d.on)
         return x;
@@ -198,9 +230,9 @@ float SynthEngine::processDrive (float x, const Drive& d, bool hardClip, double 
         wet = std::tanh (g * x) / std::sqrt (g);
     }
 
-    toneState += (wet - toneState) * toneCoef;
+    const auto filtered = tone.process (wet);
     const auto mix = d.mixPct / 100.0;
-    return (float) (x * (1.0 - mix) + toneState * mix);
+    return (float) (x * (1.0 - mix) + filtered * mix);
 }
 
 void SynthEngine::startRelease (Voice& v)
@@ -338,8 +370,8 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
     // Pass 1: voices -> shared filter -> dry + delay send straight into the
     // output buffer; the post-filter signal is also stashed for the reverb,
     // which (unlike the delay line) only offers block-based processing.
-    auto toneCoef = [this] (float hz) { return 1.0 - std::exp (-juce::MathConstants<double>::twoPi * hz / sampleRate); };
-    const auto satToneCoef = toneCoef (saturation.toneHz), distToneCoef = toneCoef (distortion.toneHz);
+    satTone.setTone (saturation.toneHz, saturation.toneHighPass, sampleRate);
+    distTone.setTone (distortion.toneHz, distortion.toneHighPass, sampleRate);
 
     // ~5 ms smoothing so wheel steps don't click; vibrato LFO at 5.5 Hz.
     const double bendCoef = 1.0 - std::exp (-1.0 / (0.005 * sampleRate));
@@ -396,8 +428,8 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
         z1 = b1 * x + z2 - a1 * y;
         z2 = b2 * x - a2 * y;
         float filtered = (float) y;
-        filtered = processDrive (filtered, saturation, false, satToneCoef, satToneState);
-        filtered = processDrive (filtered, distortion, true, distToneCoef, distToneState);
+        filtered = processDrive (filtered, saturation, false, satTone);
+        filtered = processDrive (filtered, distortion, true, distTone);
 
         // Delay send (feedback line read-before-write).
         const float delayRead = delayLine.popSample (0, (float) delaySamples, true);

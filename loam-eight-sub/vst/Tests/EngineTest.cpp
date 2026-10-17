@@ -203,6 +203,28 @@ int main()
             return 1;
         }
         std::printf ("ok: drive stages, RMS clean=%.3f sat=%.3f dist=%.3f\n", clean, saturated, distorted);
+
+        // TONE > (highpass) at 2 kHz on a low sine should leave much less than TONE < (lowpass).
+        auto toneRms = [] (bool highPass)
+        {
+            SynthEngine e;
+            e.prepare (44100.0, 512);
+            e.wave = SynthEngine::Wave::Sine;
+            e.cutoffHz = 12000.0f;
+            e.saturation = { true, 0.0f, 2000.0f, 100.0f, highPass };
+            e.noteOn (45, 1.0f);   // A2, 110 Hz
+            juce::AudioBuffer<float> b (2, 512);
+            for (int block = 0; block < 10; ++block)
+                e.render (b, 0, 512);
+            return rms (b, 0, 0, 512);
+        };
+        const auto lowPassed = toneRms (false), highPassed = toneRms (true);
+        if (! (highPassed < lowPassed * 0.1f))
+        {
+            std::fprintf (stderr, "FAIL: TONE highpass should cut a 110 Hz sine, RMS lp=%f hp=%f\n", lowPassed, highPassed);
+            return 1;
+        }
+        std::printf ("ok: TONE < keeps 110 Hz (RMS %.3f), TONE > cuts it (RMS %.4f)\n", lowPassed, highPassed);
     }
 
     std::printf ("EngineTest passed.\n");

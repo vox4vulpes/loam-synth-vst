@@ -56,16 +56,19 @@ public:
     float vibratoSemis = 0.0f;
 
     // Drive stages after the filter, before delay and reverb: soft tanh
-    // saturation, then asymmetric hard-clip distortion. Each has its own
-    // tone lowpass on the driven signal and a dry/wet mix.
+    // saturation, then asymmetric hard-clip distortion. Each has its own tone
+    // filter on the driven signal -- a 12 dB/oct Butterworth lowpass ("TONE <")
+    // or highpass ("TONE >"), the same as the web version's BiquadFilter --
+    // and a dry/wet mix.
     struct Drive
     {
         bool on = false;
         float drivePct = 30.0f;
         float toneHz = 8000.0f;
         float mixPct = 50.0f;
+        bool toneHighPass = false;
     };
-    Drive saturation, distortion { false, 40.0f, 5000.0f, 50.0f };
+    Drive saturation, distortion { false, 40.0f, 5000.0f, 50.0f, false };
 
 private:
     enum class Stage { Idle, Attack, Decay, Sustain, Release };
@@ -93,8 +96,14 @@ private:
     double sampleRate = 44100.0;
     bool sustainDown = false;
     double smoothedBend = 0.0, lfoPhase = 0.0, lastPitchOffset = 0.0;
-    double satToneState = 0.0, distToneState = 0.0;
-    float processDrive (float x, const Drive& d, bool hardClip, double toneCoef, double& toneState) const;
+    struct Biquad
+    {
+        double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0, z1 = 0.0, z2 = 0.0;
+        void setTone (double hz, bool highPass, double sampleRate);
+        double process (double x);
+    };
+    Biquad satTone, distTone;
+    float processDrive (float x, const Drive& d, bool hardClip, Biquad& tone) const;
 
     // Shared lowpass filter (RBJ biquad), recalculated once per block.
     double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;

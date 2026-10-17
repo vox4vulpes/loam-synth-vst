@@ -61,6 +61,10 @@ public:
     void attachMod (LoamEightSubProcessor&);
     void refreshMod();   // called on the editor's timer
 
+    // Makes the label a switch for a bool parameter, showing offText / onText
+    // (used by TONE: "TONE <" lowpass, "TONE >" highpass).
+    void setLabelToggle (juce::RangedAudioParameter&, const juce::String& offText, const juce::String& onText);
+
 private:
     // Small round button: off -> on (green) -> reversed (red) -> off.
     struct ModButton : public juce::Component
@@ -84,6 +88,10 @@ private:
     bool customShown = false, modded = false;
     float shownNormalised = 0.0f;
     int draggingDot = 0;   // 0 none, 1 red, 2 green
+
+    std::unique_ptr<juce::ParameterAttachment> labelToggle;
+    juce::String labelOff, labelOn;
+    bool labelOnState = false;
 
     juce::Slider slider;
     juce::Label label, readout;
