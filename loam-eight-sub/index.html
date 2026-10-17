@@ -16,6 +16,7 @@
     --coral:#b85540;
     --lavender:#8a78a3;
     --mod-red:#d33b2c;
+    --drive-red:#b8322a;
     --mod-green:#3a9a4a;
     --sage:#5f7344;
     --readout-bg:#171308;
@@ -264,10 +265,10 @@
 
   .fx-title-row{display:flex; align-items:center; gap:4px;}
   .fx-title-row .module-title{margin-right:auto;}
-  .fx-page-btn{min-width:22px; padding:2px 0; --accent:var(--lavender);}
+  .fx-page-btn{min-width:22px; padding:2px 0;}
   .fx-page-name{
     font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;
-    color:var(--lavender); min-width:44px; text-align:center;
+    color:var(--accent); min-width:44px; text-align:center;
   }
   .fx-rack{display:flex; gap:10px; flex-wrap:wrap;}
   .fx-rack[hidden]{display:none;}
@@ -630,7 +631,7 @@
       <div class="knob-row" id="env-knobs"></div>
     </section>
 
-    <section class="module module--wide" style="--accent:var(--lavender); --area:fx">
+    <section class="module module--wide" id="fx-module" style="--accent:var(--lavender); --area:fx">
       <div class="fx-title-row">
         <h2 class="module-title">Effects</h2>
         <button class="chip-btn fx-page-btn" type="button" id="fx-prev" aria-label="Previous effects page">&lsaquo;</button>
@@ -1512,6 +1513,8 @@
     fxPage = (page % FX_PAGES.length + FX_PAGES.length) % FX_PAGES.length;
     document.querySelectorAll('.fx-rack').forEach(function(rack){ rack.hidden = Number(rack.dataset.page) !== fxPage; });
     document.getElementById('fx-page-name').textContent = FX_PAGES[fxPage].toUpperCase();
+    // Drive gets a red look; Time keeps the module's lavender.
+    document.getElementById('fx-module').style.setProperty('--accent', fxPage === 1 ? 'var(--drive-red)' : 'var(--lavender)');
   }
   document.getElementById('fx-prev').addEventListener('click', function(){ setFxPage(fxPage - 1); });
   document.getElementById('fx-next').addEventListener('click', function(){ setFxPage(fxPage + 1); });

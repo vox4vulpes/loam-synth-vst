@@ -24,6 +24,7 @@ namespace LoamColours
     inline const juce::Colour shadow      { 0x591e190f };
     inline const juce::Colour modRed      { 0xffd33b2c };
     inline const juce::Colour modGreen    { 0xff3a9a4a };
+    inline const juce::Colour driveRed    { 0xffb8322a };   // the Effects module on its Drive page
 }
 
 class LoamLookAndFeel : public juce::LookAndFeel_V4
@@ -113,7 +114,8 @@ class FxUnit : public juce::Component
 {
 public:
     FxUnit (juce::AudioProcessorValueTreeState&, const juce::String& title, const juce::String& switchId,
-            const juce::String& mixId, std::array<std::unique_ptr<LoamKnob>, 3> knobs);
+            const juce::String& mixId, std::array<std::unique_ptr<LoamKnob>, 3> knobs,
+            juce::Colour accent = LoamColours::lavender);
 
     void paint (juce::Graphics&) override;
     void resized() override;

@@ -416,7 +416,7 @@ void ScopeView::paint (juce::Graphics& g)
 
 //==============================================================================
 FxUnit::FxUnit (juce::AudioProcessorValueTreeState& state, const juce::String& titleText, const juce::String& switchId,
-                const juce::String& mixParamId, std::array<std::unique_ptr<LoamKnob>, 3> unitKnobs)
+                const juce::String& mixParamId, std::array<std::unique_ptr<LoamKnob>, 3> unitKnobs, juce::Colour accent)
     : apvts (state), mixId (mixParamId), toggleAttachment (state, switchId, toggle), knobs (std::move (unitKnobs))
 {
     title.setText (titleText.toUpperCase(), juce::dontSendNotification);
@@ -425,7 +425,7 @@ FxUnit::FxUnit (juce::AudioProcessorValueTreeState& state, const juce::String& t
     title.setMinimumHorizontalScale (0.75f);   // "REVERB" next to the switch is a tight fit
     addAndMakeVisible (title);
 
-    toggle.setColour (juce::ToggleButton::tickColourId, lavender);
+    toggle.setColour (juce::ToggleButton::tickColourId, accent);
     toggle.setWantsKeyboardFocus (false);
     toggle.setTitle (titleText + " on");
     toggle.onClick = [this]
@@ -768,13 +768,13 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
                     std::make_unique<LoamKnob> (p.apvts, "reverbSize", "Size", lavender, "s", 1),
                     std::make_unique<LoamKnob> (p.apvts, "reverbTone", "Tone", lavender, "Hz") }),
       satUnit (p.apvts, "Sat", "satOn", "satMix",
-               { std::make_unique<LoamKnob> (p.apvts, "satDrive", "Drive", lavender, "%"),
-                 std::make_unique<LoamKnob> (p.apvts, "satTone", "Tone", lavender, "Hz"),
-                 std::make_unique<LoamKnob> (p.apvts, "satMix", "Mix", lavender, "%") }),
+               { std::make_unique<LoamKnob> (p.apvts, "satDrive", "Drive", driveRed, "%"),
+                 std::make_unique<LoamKnob> (p.apvts, "satTone", "Tone", driveRed, "Hz"),
+                 std::make_unique<LoamKnob> (p.apvts, "satMix", "Mix", driveRed, "%") }, driveRed),
       distUnit (p.apvts, "Dist", "distOn", "distMix",
-                { std::make_unique<LoamKnob> (p.apvts, "distDrive", "Drive", lavender, "%"),
-                  std::make_unique<LoamKnob> (p.apvts, "distTone", "Tone", lavender, "Hz"),
-                  std::make_unique<LoamKnob> (p.apvts, "distMix", "Mix", lavender, "%") }),
+                { std::make_unique<LoamKnob> (p.apvts, "distDrive", "Drive", driveRed, "%"),
+                  std::make_unique<LoamKnob> (p.apvts, "distTone", "Tone", driveRed, "Hz"),
+                  std::make_unique<LoamKnob> (p.apvts, "distMix", "Mix", driveRed, "%") }, driveRed),
       keyboard (p.keyboardState),
       portaToggleAttachment (p.apvts, "portaOn", portaToggle),
       glideAttachment (p.apvts, "portaTime", glideSlider),
@@ -1142,6 +1142,13 @@ void LoamEightSubEditor::setFxPage (int page)
     satUnit.setVisible (fxPage == 1);
     distUnit.setVisible (fxPage == 1);
     fxPageName.setText (fxPage == 0 ? "TIME" : "DRIVE", juce::dontSendNotification);
+
+    // Drive gets a red look; Time keeps the module's lavender.
+    fx.accent = fxPage == 1 ? driveRed : lavender;
+    fxPageName.setColour (juce::Label::textColourId, fx.accent);
+    for (auto* b : { &fxPrev, &fxNext })
+        b->setColour (juce::TextButton::buttonOnColourId, fx.accent);
+    repaint (fx.bounds);
 }
 
 void LoamEightSubEditor::stepBendRange (int delta)

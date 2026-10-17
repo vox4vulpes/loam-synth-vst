@@ -33,7 +33,7 @@ release workflow refuses to publish a version that has no section here.
   (soft, warm) and **Distortion** (hard, asymmetric clip), each with Drive,
   Tone and Mix and its own on/off switch. They sit after the filter and
   before delay and reverb. Factory presets leave them off; user presets save
-  them.
+  them. The Effects module turns red on the Drive page.
 
 ## [1.3.0]
 
