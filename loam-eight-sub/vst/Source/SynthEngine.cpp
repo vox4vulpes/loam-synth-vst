@@ -65,7 +65,7 @@ void SynthEngine::noteOn (int midiNote, float /*velocity*/)
     v->subPhase = 0.0;
     v->pitch = v->targetPitch = midiNote + tuneCents / 100.0;
     v->pitchStep = 0.0;
-    v->freq = pitchToFreq (v->pitch);
+    v->freq = pitchToFreq (v->pitch + lastPitchOffset);
     v->stage = Stage::Attack;
     v->envLevel = 0.0f;
 }
@@ -84,7 +84,7 @@ void SynthEngine::glideTo (Voice& v, double target)
     {
         v.pitchStep = (target - v.pitch) / samples;
     }
-    v.freq = pitchToFreq (v.pitch);
+    v.freq = pitchToFreq (v.pitch + lastPitchOffset);
 }
 
 void SynthEngine::portaNoteOn (int note)
@@ -312,16 +312,29 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
     // Pass 1: voices -> shared filter -> dry + delay send straight into the
     // output buffer; the post-filter signal is also stashed for the reverb,
     // which (unlike the delay line) only offers block-based processing.
+    // ~5 ms smoothing so wheel steps don't click; vibrato LFO at 5.5 Hz.
+    const double bendCoef = 1.0 - std::exp (-1.0 / (0.005 * sampleRate));
+    const double lfoStep = 5.5 / sampleRate;
+
     for (int i = 0; i < numSamples; ++i)
     {
         float mixed = 0.0f;
+
+        smoothedBend += ((double) bendSemis - smoothedBend) * bendCoef;
+        lfoPhase += lfoStep;
+        if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+        const double pitchOffset = smoothedBend
+                                 + (double) vibratoSemis * std::sin (juce::MathConstants<double>::twoPi * lfoPhase);
+        const bool offsetMoving = std::abs (pitchOffset - lastPitchOffset) > 1.0e-6;
+        lastPitchOffset = pitchOffset;
 
         for (auto& v : voices)
         {
             if (! v.active)
                 continue;
 
-            if (v.pitchStep != 0.0)
+            const bool gliding = v.pitchStep != 0.0;
+            if (gliding)
             {
                 v.pitch += v.pitchStep;
                 if ((v.pitchStep > 0.0 && v.pitch >= v.targetPitch) || (v.pitchStep < 0.0 && v.pitch <= v.targetPitch))
@@ -329,8 +342,9 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
                     v.pitch = v.targetPitch;
                     v.pitchStep = 0.0;
                 }
-                v.freq = pitchToFreq (v.pitch);
             }
+            if (gliding || offsetMoving)
+                v.freq = pitchToFreq (v.pitch + pitchOffset);
 
             const double dPhase = v.freq / sampleRate;
             const double dSubPhase = (v.freq * 0.5) / sampleRate;

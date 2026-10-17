@@ -125,6 +125,30 @@ private:
     bool spaceDown = false;
 };
 
+// A pitch or mod wheel beside the keys. Drag it up and down; the pitch wheel
+// springs back to the centre on release, the mod wheel stays put. It also
+// follows the hardware wheels, since both write the same value.
+class WheelView : public juce::Component
+{
+public:
+    WheelView (const juce::String& name, std::atomic<float>& value, bool bipolar);
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void refresh();
+
+private:
+    juce::Rectangle<float> slot() const;
+    void setFromY (float y);
+
+    juce::String name;
+    std::atomic<float>& value;
+    bool bipolar;            // pitch: -1..1 around a centre detent; mod: 0..1
+    float shown = 0.0f;
+};
+
 // Strip under the keyboard showing which keys PORTA glides on. Drag either
 // end (or click a key) to move the nearer end of the range.
 class PortaRangeStrip : public juce::Component
@@ -213,6 +237,13 @@ private:
     juce::AudioProcessorValueTreeState::SliderAttachment glideAttachment;
     PortaRangeStrip portaStrip;
     bool portaShown = false;
+
+    WheelView pitchWheel, modWheel;
+    juce::Label modLabel, bendLabel;
+    std::array<juce::TextButton, 3> modModeButtons;
+    std::unique_ptr<juce::ParameterAttachment> modModeAttachment;
+    juce::ComboBox bendRangeBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> bendRangeAttachment;
     bool keyboardFocused = false;
 
     Module presetsModule { "Presets",    LoamColours::sage,     {} };

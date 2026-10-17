@@ -9,7 +9,11 @@ namespace
                     delayTimeId = "delayTime", delayFeedbackId = "delayFeedback", delayMixId = "delayMix",
                     reverbMixId = "reverbMix", reverbSizeId = "reverbSize", reverbToneId = "reverbTone",
                     delayOnId = "delayOn", reverbOnId = "reverbOn",
-                    portaOnId = "portaOn", portaTimeId = "portaTime", portaLowId = "portaLow", portaHighId = "portaHigh";
+                    portaOnId = "portaOn", portaTimeId = "portaTime", portaLowId = "portaLow", portaHighId = "portaHigh",
+                    modModeId = "modMode", bendRangeId = "bendRange";
+
+    // Mod wheel at the top: vibrato depth in semitones, or filter opening in octaves.
+    constexpr float maxVibratoSemis = 0.6f, maxFilterOctaves = 4.0f;
 
     // Same factory presets as the web version (index.html, FACTORY_PRESETS).
     // wave: 0 Sine, 1 Saw, 2 Square, 3 Triangle. Effects start on when their mix is up.
@@ -137,6 +141,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::creat
     params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaLowId, 1), "Porta Low Key", 0, 127, 60));
     params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaHighId, 1), "Porta High Key", 0, 127, 76));
 
+    // Wheels: what the mod wheel does, and how far pitch bend reaches.
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID (modModeId, 1), "Mod Wheel", juce::StringArray { "Vibrato", "Filter", "Custom" }, 0));
+    juce::StringArray bendChoices;
+    for (int semis = 1; semis <= 12; ++semis)
+        bendChoices.add (juce::String (semis));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID (bendRangeId, 1), "Bend Range", bendChoices, 1));   // index 1 = 2 semitones
+
     return { params.begin(), params.end() };
 }
 
@@ -176,6 +189,13 @@ void LoamEightSubProcessor::pullParameters()
     engine.portaTimeMs = get (portaTimeId);
     engine.portaLow = juce::jmin (low, high);
     engine.portaHigh = juce::jmax (low, high);
+
+    const auto mod = modWheel.load();
+    const auto modMode = (int) get (modModeId);
+    engine.bendSemis = bendWheel.load() * (get (bendRangeId) + 1.0f);
+    engine.vibratoSemis = modMode == 0 ? mod * maxVibratoSemis : 0.0f;
+    if (modMode == 1)
+        engine.cutoffHz = juce::jmin (12000.0f, engine.cutoffHz * std::exp2 (mod * maxFilterOctaves));
 }
 
 void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -189,7 +209,17 @@ void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     for (const auto metadata : midi)
     {
         const auto msg = metadata.getMessage();
-        if (msg.isSustainPedalOn() || msg.isSustainPedalOff())
+        if (msg.isPitchWheel())
+        {
+            bendWheel = juce::jlimit (-1.0f, 1.0f, (float) (msg.getPitchWheelValue() - 8192) / 8191.0f);
+            pullParameters();
+        }
+        else if (msg.isControllerOfType (1))
+        {
+            modWheel = (float) msg.getControllerValue() / 127.0f;
+            pullParameters();
+        }
+        else if (msg.isSustainPedalOn() || msg.isSustainPedalOff())
         {
             midiSustain = msg.isSustainPedalOn();
             applySustain();

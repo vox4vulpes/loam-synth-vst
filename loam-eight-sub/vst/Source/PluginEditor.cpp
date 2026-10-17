@@ -6,7 +6,7 @@ namespace
 {
     // Layout mirrors the web panel: header, scope, presets, then the synth
     // modules on the left with effects as a tall column on the right.
-    constexpr int editorWidth = 900, editorHeight = 728;
+    constexpr int editorWidth = 900, editorHeight = 768;
     constexpr int pad = 20, gap = 12, headerHeight = 56, scopeHeight = 132, presetsHeight = 92;
     constexpr int rowHeight = 180, fxWidth = 214, titleHeight = 26;
     constexpr int knobWidth = 60, knobHeight = 98, fxKnobHeight = 96;
@@ -423,6 +423,78 @@ void LoamKeyboard::drawBlackNote (int midiNoteNumber, juce::Graphics& g, juce::R
 }
 
 //==============================================================================
+WheelView::WheelView (const juce::String& wheelName, std::atomic<float>& wheelValue, bool isBipolar)
+    : name (wheelName), value (wheelValue), bipolar (isBipolar)
+{
+    setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+    setTitle (name + " wheel");
+}
+
+juce::Rectangle<float> WheelView::slot() const
+{
+    return getLocalBounds().toFloat().withTrimmedBottom (14.0f);
+}
+
+void WheelView::setFromY (float y)
+{
+    const auto s = slot();
+    const auto t = juce::jlimit (0.0f, 1.0f, 1.0f - (y - s.getY()) / s.getHeight());
+    value = bipolar ? t * 2.0f - 1.0f : t;
+    refresh();
+}
+
+void WheelView::mouseDown (const juce::MouseEvent& e) { setFromY (e.position.y); }
+void WheelView::mouseDrag (const juce::MouseEvent& e) { setFromY (e.position.y); }
+
+void WheelView::mouseUp (const juce::MouseEvent&)
+{
+    if (bipolar)
+    {
+        value = 0.0f;   // a pitch wheel springs back to the centre
+        refresh();
+    }
+}
+
+void WheelView::refresh()
+{
+    if (const auto v = value.load(); v != shown)
+    {
+        shown = v;
+        repaint();
+    }
+}
+
+void WheelView::paint (juce::Graphics& g)
+{
+    const auto s = slot();
+    g.setColour (ink.withAlpha (0.35f));
+    g.fillRoundedRectangle (s, 5.0f);
+
+    // The wheel face, with ridges that roll as it turns.
+    const auto face = s.reduced (3.0f);
+    g.setGradientFill (juce::ColourGradient (groove, face.getX(), 0.0f, grooveDark, face.getRight(), 0.0f, false));
+    g.fillRoundedRectangle (face, 4.0f);
+
+    const auto t = bipolar ? (shown + 1.0f) * 0.5f : shown;
+    const auto y = face.getBottom() - t * face.getHeight();
+    g.setColour (ink.withAlpha (0.18f));
+    for (float ridge = std::fmod (y - face.getY(), 6.0f); ridge < face.getHeight(); ridge += 6.0f)
+        g.drawHorizontalLine (juce::roundToInt (face.getY() + ridge), face.getX() + 2.0f, face.getRight() - 2.0f);
+
+    if (bipolar)
+    {
+        g.setColour (ink.withAlpha (0.35f));
+        g.drawHorizontalLine (juce::roundToInt (face.getCentreY()), face.getX(), face.getRight());
+    }
+    g.setColour (bipolar ? coral : teal);
+    g.fillRoundedRectangle ({ face.getX(), y - 2.0f, face.getWidth(), 4.0f }, 2.0f);
+
+    g.setColour (ink);
+    g.setFont (monoFont (8.5f));
+    g.drawText (name, getLocalBounds().removeFromBottom (12), juce::Justification::centred, false);
+}
+
+//==============================================================================
 PortaRangeStrip::PortaRangeStrip (juce::AudioProcessorValueTreeState& state, LoamKeyboard& kb)
     : apvts (state), keyboard (kb),
       lowParam (state.getParameter ("portaLow")), highParam (state.getParameter ("portaHigh"))
@@ -545,7 +617,9 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
       keyboard (p.keyboardState),
       portaToggleAttachment (p.apvts, "portaOn", portaToggle),
       glideAttachment (p.apvts, "portaTime", glideSlider),
-      portaStrip (p.apvts, keyboard)
+      portaStrip (p.apvts, keyboard),
+      pitchWheel ("PITCH", p.bendWheel, true),
+      modWheel ("MOD", p.modWheel, false)
 {
     setLookAndFeel (&lnf);
     addAndMakeVisible (scope);
@@ -666,6 +740,43 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     glideReadout.setBorderSize ({});
     addAndMakeVisible (glideReadout);
     addChildComponent (portaStrip);
+
+    // ---- wheels, mod wheel mode and bend range
+    addAndMakeVisible (pitchWheel);
+    addAndMakeVisible (modWheel);
+    for (auto [l, text] : { std::pair { &modLabel, "MOD" }, std::pair { &bendLabel, "BEND" } })
+    {
+        l->setText (text, juce::dontSendNotification);
+        l->setFont (monoFont (10.0f).withExtraKerningFactor (0.12f));
+        l->setColour (juce::Label::textColourId, ink);
+        l->setBorderSize ({});
+        addAndMakeVisible (*l);
+    }
+    const char* modNames[] = { "VIB", "FILT", "CUST" };
+    for (int i = 0; i < (int) modModeButtons.size(); ++i)
+    {
+        auto& b = modModeButtons[(size_t) i];
+        b.setButtonText (modNames[i]);
+        b.setColour (juce::TextButton::buttonOnColourId, teal);
+        b.setWantsKeyboardFocus (false);
+        b.onClick = [this, i] { modModeAttachment->setValueAsCompleteGesture ((float) i); };
+        addAndMakeVisible (b);
+    }
+    modModeAttachment = std::make_unique<juce::ParameterAttachment> (
+        *p.apvts.getParameter ("modMode"),
+        [this] (float v)
+        {
+            for (int i = 0; i < (int) modModeButtons.size(); ++i)
+                modModeButtons[(size_t) i].setToggleState (i == juce::roundToInt (v), juce::dontSendNotification);
+        });
+    modModeAttachment->sendInitialUpdate();
+
+    for (int semis = 1; semis <= 12; ++semis)
+        bendRangeBox.addItem (utf8 ("\xc2\xb1") + juce::String (semis), semis);
+    bendRangeBox.setWantsKeyboardFocus (false);
+    bendRangeBox.setTitle ("Pitch bend range in semitones");
+    bendRangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, "bendRange", bendRangeBox);
+    addAndMakeVisible (bendRangeBox);
 
     // Buttons shouldn't steal focus from the keyboard, or computer keys stop playing.
     for (auto& b : presetTypeButtons) b.setWantsKeyboardFocus (false);
@@ -851,6 +962,8 @@ void LoamEightSubEditor::timerCallback()
         resized();
     if (portaShown)
         portaStrip.repaint();
+    pitchWheel.refresh();
+    modWheel.refresh();
 
     if (const auto pedal = audioProcessor.sustainActive.load(); pedal != shownSustain)
     {
@@ -1058,7 +1171,25 @@ void LoamEightSubEditor::resized()
     glideLabel.setBounds (octaveRow.removeFromLeft (38));
     glideSlider.setBounds (octaveRow.removeFromLeft (80).reduced (4, 0));
     glideReadout.setBounds (octaveRow.removeFromLeft (50));
+
+    kb.removeFromTop (4);
+    auto wheelRow = kb.removeFromTop (24);
+    modLabel.setBounds (wheelRow.removeFromLeft (34));
+    for (auto& b : modModeButtons)
+    {
+        b.setBounds (wheelRow.removeFromLeft (42));
+        wheelRow.removeFromLeft (3);
+    }
+    wheelRow.removeFromLeft (16);
+    bendLabel.setBounds (wheelRow.removeFromLeft (40));
+    bendRangeBox.setBounds (wheelRow.removeFromLeft (64));
     kb.removeFromTop (6);
+
+    // Pitch and mod wheels to the left of the keys, like on a hardware keyboard.
+    auto wheels = kb.removeFromLeft (46);
+    pitchWheel.setBounds (wheels.removeFromLeft (20));
+    modWheel.setBounds (wheels.removeFromRight (20));
+    kb.removeFromLeft (8);
 
     portaShown = portaToggle.getToggleState();
     portaStrip.setVisible (portaShown);

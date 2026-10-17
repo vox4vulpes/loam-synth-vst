@@ -398,7 +398,7 @@
   .porta-readout{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink); min-width:46px;}
   .porta-ctl.is-off #porta-time, .porta-ctl.is-off .porta-readout{opacity:.45;}
   .porta-range{
-    position:relative; height:18px; margin-top:4px; min-width:440px;
+    position:relative; height:18px; margin-top:4px; min-width:400px;
     background:rgba(42,36,29,.12); border-radius:4px;
     cursor:ew-resize; touch-action:none; user-select:none;
   }
@@ -419,6 +419,42 @@
     position:absolute; inset:0; display:flex; align-items:center; padding:0 6px;
     font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--ink); opacity:.7; pointer-events:none;
   }
+  .wheel-controls{display:flex; align-items:center; gap:4px; flex-wrap:wrap;}
+  .wheel-controls .porta-label{margin-right:4px;}
+  .wheel-controls .chip-btn{--accent:var(--teal); min-width:40px; padding:4px 6px;}
+  .wheel-controls .bend-label{margin-left:14px;}
+  .wheel-controls select{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--groove-dark); border-radius:6px; padding:3px 4px;
+  }
+  .keys-row{display:flex; gap:8px; flex:1; min-width:0;}
+  .keys-row .keyboard-scroll{min-width:0;}   /* scroll the keys rather than widen the bay */
+  .wheels{display:flex; gap:6px; flex:none;}
+  .wheel{
+    width:20px; display:flex; flex-direction:column; align-items:center; gap:2px;
+    touch-action:none; cursor:ns-resize; user-select:none;
+  }
+  .wheel-slot{
+    position:relative; width:100%; height:132px; border-radius:5px;
+    background:rgba(42,36,29,.35); padding:3px; box-sizing:border-box;
+  }
+  .wheel-face{
+    position:relative; width:100%; height:100%; border-radius:4px; overflow:hidden;
+    background:repeating-linear-gradient(to bottom, rgba(42,36,29,.18) 0 1px, transparent 1px 6px),
+               linear-gradient(to right, var(--groove), var(--groove-dark));
+    background-position:0 var(--roll, 0px), 0 0;
+  }
+  .wheel-face::before{
+    content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(42,36,29,.35);
+  }
+  .wheel--mod .wheel-face::before{display:none;}
+  .wheel-thumb{
+    position:absolute; left:0; right:0; height:4px; margin-top:-2px; border-radius:2px;
+    background:var(--coral);
+  }
+  .wheel--mod .wheel-thumb{background:var(--teal);}
+  .wheel.springing .wheel-thumb{transition:top .12s ease-out;}
+  .wheel-name{font-family:'IBM Plex Mono',monospace; font-size:8.5px; color:var(--ink);}
   .bay-status{margin-left:auto; display:flex; align-items:center; gap:14px; min-width:0;}
   .midi-status{
     font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink);
@@ -435,7 +471,7 @@
   }
   .sustain-ind.is-on .led{background:var(--coral); box-shadow:0 0 6px var(--coral);}
   .keyboard-scroll{overflow-x:auto; flex:1;}
-  .keyboard{position:relative; height:132px; width:100%; min-width:440px;}
+  .keyboard{position:relative; height:132px; width:100%; min-width:400px;}
   .key{
     box-sizing:border-box;
     display:flex; align-items:flex-end; justify-content:center;
@@ -598,12 +634,32 @@
           <span class="sustain-ind" id="sustain-ind" title="Sustain pedal (or hold Space)">SUSTAIN<span class="led" aria-hidden="true"></span></span>
         </div>
       </div>
+      <div class="wheel-controls" role="group" aria-label="Wheels">
+        <span class="porta-label" id="mod-mode-label">MOD</span>
+        <button class="chip-btn" type="button" data-mod="vib" title="Mod wheel adds vibrato">VIB</button>
+        <button class="chip-btn" type="button" data-mod="filter" title="Mod wheel opens the filter">FILT</button>
+        <button class="chip-btn" type="button" data-mod="custom" title="Mod wheel moves the knobs you assign">CUST</button>
+        <label class="porta-label bend-label" for="bend-range">BEND</label>
+        <select id="bend-range" title="Pitch bend range in semitones"></select>
+      </div>
+      <div class="keys-row">
+      <div class="wheels">
+        <div class="wheel wheel--pitch" id="pitch-wheel" role="slider" aria-label="Pitch wheel" aria-valuemin="-1" aria-valuemax="1" tabindex="0">
+          <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div></div>
+          <span class="wheel-name">PITCH</span>
+        </div>
+        <div class="wheel wheel--mod" id="mod-wheel" role="slider" aria-label="Mod wheel" aria-valuemin="0" aria-valuemax="1" tabindex="0">
+          <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div></div>
+          <span class="wheel-name">MOD</span>
+        </div>
+      </div>
       <div class="keyboard-scroll">
         <div class="keyboard" id="keyboard"></div>
         <div class="porta-range" id="porta-range" hidden title="PORTA key range: drag either end, or click a key">
           <div class="porta-bar" id="porta-bar"></div>
           <span class="porta-out" id="porta-out"></span>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -620,8 +676,14 @@
     attack:10, decay:150, sustain:70, release:300, volume:70,
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
     // Portamento: a performance setting, not part of presets.
-    portaOn:false, portaTime:150, portaLow:60, portaHigh:76
+    portaOn:false, portaTime:150, portaLow:60, portaHigh:76,
+    // Wheels: what the mod wheel does, and how far pitch bend reaches (semitones).
+    modMode:'vib', bendRange:2
   };
+  // Wheel positions, from the on-screen wheels or a MIDI keyboard.
+  var bendWheel = 0, modWheelValue = 0;
+  var MAX_VIBRATO_CENTS = 60, MAX_FILTER_OCTAVES = 4;   // mod wheel at the top
+  var vibratoGain = null;
   var audioCtx = null, masterFilter = null, masterGain = null, analyser = null, scopeStarted = false;
   // Effect units can be switched off without losing their knob settings.
   var fxOn = { delay: false, reverb: false };
@@ -681,7 +743,15 @@
 
     masterFilter = audioCtx.createBiquadFilter();
     masterFilter.type = 'lowpass';
-    masterFilter.frequency.value = params.cutoff;
+    masterFilter.frequency.value = effectiveCutoff();
+
+    // One 5.5 Hz vibrato LFO feeding every voice's detune; the mod wheel sets its depth.
+    var lfo = audioCtx.createOscillator();
+    lfo.frequency.value = 5.5;
+    vibratoGain = audioCtx.createGain();
+    vibratoGain.gain.value = vibratoCents();
+    lfo.connect(vibratoGain);
+    lfo.start();
     masterFilter.Q.value = params.resonance;
 
     var sumBus = audioCtx.createGain();
@@ -761,6 +831,10 @@
     var voiceGain = audioCtx.createGain();
     voiceGain.gain.value = 0;
 
+    osc.detune.value = subOsc.detune.value = bendCents();
+    vibratoGain.connect(osc.detune);
+    vibratoGain.connect(subOsc.detune);
+
     osc.connect(voiceGain);
     subOsc.connect(subGain);
     subGain.connect(voiceGain);
@@ -790,7 +864,10 @@
     v.voiceGain.gain.linearRampToValueAtTime(0.0001, now + rel);
     v.osc.stop(now + rel + 0.03);
     v.subOsc.stop(now + rel + 0.03);
-    v.osc.onended = function(){ v.osc.disconnect(); v.voiceGain.disconnect(); };
+    v.osc.onended = function(){
+      v.osc.disconnect(); v.voiceGain.disconnect();
+      try { vibratoGain.disconnect(v.osc.detune); vibratoGain.disconnect(v.subOsc.detune); } catch (err) {}
+    };
     if (v.keyEl) v.keyEl.classList.remove('active');
   }
 
@@ -942,6 +1019,8 @@
   function onMidiMessage(e){
     var d = e.data, status = d[0] & 0xf0;
     if (status === 0xB0 && d[1] === 64) { setSustainSource('midi', d[2] >= 64); return; }
+    if (status === 0xE0) { setBendWheel((((d[2] << 7) | d[1]) - 8192) / 8191); return; }
+    if (status === 0xB0 && d[1] === 1) { setModWheel(d[2] / 127); return; }
     if (!document.body.classList.contains('powered')) return;
     if (status === 0x90 && d[2] > 0) noteOn(d[1], byOffset[d[1] - BASE_MIDI - octaveShift * 12]);
     else if (status === 0x80 || status === 0x90) noteOff(d[1]);
@@ -1083,7 +1162,7 @@
     { id:'sub', module:'osc-knobs', label:'SUB', min:0, max:100, def:0, unit:'%',
       onInput:function(v){ params.sub = v; } },
     { id:'cutoff', module:'filter-knobs', label:'CUTOFF', min:80, max:12000, def:2200, unit:'Hz', log:true,
-      onInput:function(v){ params.cutoff = v; if (masterFilter) masterFilter.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01); } },
+      onInput:function(v){ params.cutoff = v; applyCutoff(); } },
     { id:'resonance', module:'filter-knobs', label:'RESO', min:0.1, max:20, def:1, unit:'', decimals:1,
       onInput:function(v){ params.resonance = v; if (masterFilter) masterFilter.Q.setTargetAtTime(v, audioCtx.currentTime, 0.01); } },
     { id:'attack', module:'env-knobs', label:'ATTACK', min:1, max:2000, def:10, unit:'ms',
@@ -1127,6 +1206,96 @@
       waveButtons.forEach(function(b){ b.classList.toggle('is-active', b === btn); });
     });
   });
+
+  // ---------- pitch and mod wheels ----------
+  function bendCents(){ return bendWheel * params.bendRange * 100; }
+  function vibratoCents(){ return params.modMode === 'vib' ? modWheelValue * MAX_VIBRATO_CENTS : 0; }
+  function effectiveCutoff(){
+    return params.modMode === 'filter' ? Math.min(12000, params.cutoff * Math.pow(2, modWheelValue * MAX_FILTER_OCTAVES))
+                                       : params.cutoff;
+  }
+  function applyCutoff(){
+    if (masterFilter) masterFilter.frequency.setTargetAtTime(effectiveCutoff(), audioCtx.currentTime, 0.01);
+  }
+  function allVoices(){
+    var list = Array.from(activeVoices.values());
+    if (portaVoice && !portaVoice.releasing) list.push(portaVoice);
+    return list;
+  }
+  function applyBend(){
+    if (!audioCtx) return;
+    var c = bendCents(), now = audioCtx.currentTime;
+    allVoices().forEach(function(v){
+      v.osc.detune.setTargetAtTime(c, now, 0.005);
+      v.subOsc.detune.setTargetAtTime(c, now, 0.005);
+    });
+  }
+  function applyMod(){
+    if (vibratoGain) vibratoGain.gain.setTargetAtTime(vibratoCents(), audioCtx.currentTime, 0.01);
+    applyCutoff();
+    if (window.onModWheelChange) window.onModWheelChange();
+  }
+
+  var pitchWheelEl = document.getElementById('pitch-wheel');
+  var modWheelEl = document.getElementById('mod-wheel');
+  function renderWheel(el, t){   // t: 0 (bottom) .. 1 (top)
+    el.querySelector('.wheel-thumb').style.top = ((1 - t) * 100) + '%';
+    el.querySelector('.wheel-face').style.setProperty('--roll', Math.round(-t * 90) + 'px');
+  }
+  function setBendWheel(v){
+    bendWheel = Math.max(-1, Math.min(1, v));
+    renderWheel(pitchWheelEl, (bendWheel + 1) / 2);
+    pitchWheelEl.setAttribute('aria-valuenow', bendWheel.toFixed(2));
+    applyBend();
+  }
+  function setModWheel(v){
+    modWheelValue = Math.max(0, Math.min(1, v));
+    renderWheel(modWheelEl, modWheelValue);
+    modWheelEl.setAttribute('aria-valuenow', modWheelValue.toFixed(2));
+    applyMod();
+  }
+  function wheelDrag(el, set, bipolar){
+    var dragging = false;
+    function fromY(e){
+      var r = el.querySelector('.wheel-slot').getBoundingClientRect();
+      var t = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+      set(bipolar ? t * 2 - 1 : t);
+    }
+    el.addEventListener('pointerdown', function(e){
+      dragging = true; el.classList.remove('springing'); el.setPointerCapture(e.pointerId); fromY(e);
+    });
+    el.addEventListener('pointermove', function(e){ if (dragging) fromY(e); });
+    function end(){
+      if (!dragging) return;
+      dragging = false;
+      if (bipolar) { el.classList.add('springing'); set(0); }   // pitch wheel springs back
+    }
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+  wheelDrag(pitchWheelEl, setBendWheel, true);
+  wheelDrag(modWheelEl, setModWheel, false);
+  setBendWheel(0);
+  setModWheel(0);
+
+  var modModeButtons = document.querySelectorAll('[data-mod]');
+  function setModMode(mode){
+    params.modMode = mode;
+    modModeButtons.forEach(function(b){
+      var on = b.dataset.mod === mode;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    applyMod();
+  }
+  modModeButtons.forEach(function(b){ b.addEventListener('click', function(){ setModMode(b.dataset.mod); }); });
+  setModMode(params.modMode);
+
+  var bendRangeEl = document.getElementById('bend-range');
+  for (var semis = 1; semis <= 12; semis++) bendRangeEl.add(new Option('\u00b1' + semis, String(semis)));
+  function setBendRange(semis){ params.bendRange = semis; bendRangeEl.value = String(semis); applyBend(); }
+  bendRangeEl.addEventListener('change', function(){ setBendRange(Number(bendRangeEl.value)); });
+  setBendRange(params.bendRange);
 
   // ---------- effect on/off switches ----------
   // Off mutes the unit's wet signal (and the delay's feedback, so an old
@@ -1235,6 +1404,8 @@
         knobs.get(key).setValue(p[key]);
       }
     });
+    if (p.modMode) setModMode(p.modMode);
+    if (p.bendRange) setBendRange(p.bendRange);
     // User presets saved before the switches existed: on if the mix is up.
     setFx('delay', p.delayOn !== undefined ? !!p.delayOn : p.delayMix > 0, false);
     setFx('reverb', p.reverbOn !== undefined ? !!p.reverbOn : p.reverbMix > 0, false);
@@ -1245,6 +1416,8 @@
     PRESET_KNOBS.forEach(function(key){ p[key] = knobs.get(key).getValue(); });
     p.delayOn = fxOn.delay;
     p.reverbOn = fxOn.reverb;
+    p.modMode = params.modMode;
+    p.bendRange = params.bendRange;
     return p;
   }
 

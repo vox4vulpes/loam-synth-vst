@@ -50,6 +50,11 @@ public:
     float portaTimeMs = 150.0f;
     int portaLow = 60, portaHigh = 76;
 
+    // Pitch bend (semitones, smoothed inside the engine) and vibrato depth
+    // (semitones of a 5.5 Hz sine), both applied on top of every voice.
+    float bendSemis = 0.0f;
+    float vibratoSemis = 0.0f;
+
 private:
     enum class Stage { Idle, Attack, Decay, Sustain, Release };
 
@@ -75,6 +80,7 @@ private:
 
     double sampleRate = 44100.0;
     bool sustainDown = false;
+    double smoothedBend = 0.0, lfoPhase = 0.0, lastPitchOffset = 0.0;
 
     // Shared lowpass filter (RBJ biquad), recalculated once per block.
     double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;

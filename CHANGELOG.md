@@ -3,6 +3,17 @@
 Each release's notes on GitHub start with its section from this file — the
 release workflow refuses to publish a version that has no section here.
 
+## [1.4.0]
+
+### Added
+- **Pitch and mod wheels.** Two wheels beside the keys, in the VST and the web
+  synth, that follow a MIDI keyboard's wheels and can be dragged with the
+  mouse. The pitch wheel springs back to the centre; **BEND** sets its range,
+  ±1 to ±12 semitones (default ±2). The mod wheel's **MOD** mode is **VIB**
+  (vibrato, up to ±60 cents at 5.5 Hz) or **FILT** (opens the filter up to 4
+  octaves). Mod mode and bend range are saved with user presets.
+- Every C on the on-screen keyboard shows its octave (C3, C4, C5...).
+
 ## [1.3.0]
 
 ### Added

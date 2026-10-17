@@ -145,6 +145,40 @@ int main()
         std::printf ("ok: glided back to C4, %.1f Hz\n", backHz);
     }
 
+    // Pitch bend: +2 semitones on A4 should land on B4.
+    {
+        SynthEngine bend;
+        bend.prepare (44100.0, 512);
+        bend.wave = SynthEngine::Wave::Sine;
+        bend.cutoffHz = 12000.0f;
+        bend.noteOn (69, 1.0f);
+        bend.bendSemis = 2.0f;
+
+        juce::AudioBuffer<float> b (2, 512);
+        for (int block = 0; block < 10; ++block)
+            bend.render (b, 0, 512);
+
+        int crossings = 0;
+        float prev = 0.0f;
+        for (int block = 0; block < 20; ++block)
+        {
+            bend.render (b, 0, 512);
+            for (int i = 0; i < 512; ++i)
+            {
+                const auto x = b.getSample (0, i);
+                if (prev < 0.0f && x >= 0.0f) ++crossings;
+                prev = x;
+            }
+        }
+        const auto hz = crossings * 44100.0 / (20 * 512.0);
+        if (std::abs (hz - 493.88) > 12.0)
+        {
+            std::fprintf (stderr, "FAIL: bend +2 on A4 should give ~494 Hz, got %f\n", hz);
+            return 1;
+        }
+        std::printf ("ok: bent A4 up 2 semitones, %.1f Hz\n", hz);
+    }
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }

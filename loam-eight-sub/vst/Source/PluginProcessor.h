@@ -43,6 +43,11 @@ public:
     std::atomic<bool> uiSustain { false };   // Space on the on-screen keyboard acts as the pedal
     std::atomic<bool> sustainActive { false };   // pedal state shown by the editor's SUSTAIN light
 
+    // Wheels: written by MIDI (pitch wheel, CC 1) on the audio thread and by the
+    // on-screen wheels on the message thread; whichever moved last wins.
+    std::atomic<float> bendWheel { 0.0f };   // -1 .. 1
+    std::atomic<float> modWheel { 0.0f };    //  0 .. 1
+
     //==============================================================================
     // Presets: factory ones grouped by type with several versions each (same
     // as the web version), plus user presets saved as XML files on disk.
