@@ -16,7 +16,18 @@ on:
         default: "0.0.0"
 
 jobs:
+  # Fail fast, before the long builds, if CHANGELOG.md has no entry for this tag.
+  changelog:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/changelog-section.sh "$GITHUB_REF_NAME"
+
   build:
+    needs: changelog
+    # Manual test builds skip the changelog check (it's skipped, not failed).
+    if: ${{ !failure() && !cancelled() }}
     strategy:
       fail-fast: true
       matrix:
@@ -116,6 +127,8 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
@@ -126,7 +139,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat > notes.md <<'EOF'
+          {
+            echo "## What's new"
+            echo
+            bash .github/scripts/changelog-section.sh "$GITHUB_REF_NAME"
+            echo
+          } > notes.md
+
+          cat >> notes.md <<'EOF'
           ## Downloads
 
           - **`1Bundle-Loam-Synth-Setup-<version>.exe`** — Windows installer for every synth (recommended on Windows)

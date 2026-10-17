@@ -24,7 +24,10 @@ On Windows, `1Bundle-Loam-Synth-Setup-<version>.exe` installs every synth into
 `Common Files\VST3\Loam` and upgrades an older install in place; each single
 synth's Windows zip carries its own installer that shares the same folder.
 
-To cut a new release, push a version tag (`git tag v1.1.0 && git push origin v1.1.0`);
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md) and at the top
+of every release's notes.
+
+To cut a new release, add a `## [x.y.z]` section to `CHANGELOG.md`, then push a version tag (`git tag v1.1.0 && git push origin v1.1.0`);
 the [Release workflow](.github/workflows/release.yml) builds every `*/vst/` synth
 on Windows, macOS, and Linux and publishes the zips and the installer.
 
