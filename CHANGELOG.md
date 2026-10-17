@@ -20,6 +20,8 @@ release workflow refuses to publish a version that has no section here.
   Grooves are kept separately from kits, so any groove plays on any kit.
 - Loam Eight Sub gets the same signature: 小鷺 (kosagi, the little egret)
   in its subtitle and the egret beside it — click it.
+- Browser-tab icons: DaBoom shows a 3×3 panel of drum pads, Eight Sub its
+  scope with the four waves. DaBoom's app icon is ready for the VST3.
 
 ### Fixed
 - Knob caps catch the light straight from the top, at 12 o'clock — the
