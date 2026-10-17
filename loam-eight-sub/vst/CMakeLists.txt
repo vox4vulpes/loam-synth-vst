@@ -29,7 +29,10 @@ if(LOAM_BUILD_PLUGIN)
         IS_SYNTH TRUE
         NEEDS_MIDI_INPUT TRUE
         VST3_CATEGORIES Instrument Synth
-        ICON_BIG Resources/icon.png   # standalone app icon; source art in Resources/icon.svg
+        # Standalone app icon. SVG so JUCE renders every icon size (16/32/48/256 on
+        # Windows) directly instead of downscaling one bitmap, which came out blurry.
+        ICON_BIG Resources/icon.svg
+        ICON_SMALL Resources/icon-small.svg
     )
 
     target_sources(LoamEightSub PRIVATE
