@@ -397,6 +397,17 @@ void LoamKeyboard::drawWhiteNote (int midiNoteNumber, juce::Graphics& g, juce::R
                                   bool isDown, bool isOver, juce::Colour lineColour, juce::Colour)
 {
     MidiKeyboardComponent::drawWhiteNote (midiNoteNumber, g, area, isDown, isOver, lineColour, juce::Colours::transparentBlack);
+
+    // Octave name on every C, high on the key: shows where you are.
+    if (midiNoteNumber % 12 == 0)
+    {
+        g.setColour (coral);
+        g.setFont (monoFont (9.0f));
+        g.drawText (juce::MidiMessage::getMidiNoteName (midiNoteNumber, true, true, 4),
+                    area.withTrimmedTop (area.getHeight() * getBlackNoteLengthProportion() + 4.0f).withHeight (14.0f),
+                    juce::Justification::centred, false);   // just below the black keys
+    }
+
     g.setColour (inkSoft);
     g.setFont (monoFont (10.0f));
     g.drawText (capFor (midiNoteNumber), area.removeFromBottom (18.0f), juce::Justification::centred, false);

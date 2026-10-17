@@ -464,6 +464,12 @@
     pointer-events:none;
   }
   .key.black .cap{color:rgba(255,255,255,.6);}
+  /* Octave name on every C, high on the key: shows where you are. */
+  .key .oct{
+    position:absolute; top:calc(60% + 6px); left:0; right:0; text-align:center;   /* just below the black keys */
+    font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:500;
+    color:var(--coral); pointer-events:none;
+  }
   .key.white.active{background:linear-gradient(var(--mustard), var(--panel-raised));}
   .key.black.active{background:linear-gradient(var(--coral), #0b0906);}
 
@@ -1358,6 +1364,12 @@
     cap.className = 'cap';
     if (OFFSET_TO_LETTER[offset] !== undefined) cap.textContent = OFFSET_TO_LETTER[offset];
 
+    if (mod === 0) {
+      var oct = document.createElement('span');
+      oct.className = 'oct';
+      keyEl.appendChild(oct);
+    }
+
     if (!isBlack) {
       keyEl.className = 'key white';
       keyEl.style.left = (whiteIndex * whiteW) + '%';
@@ -1439,8 +1451,16 @@
   function setOctaveShift(v){
     octaveShift = Math.max(-2, Math.min(2, v));
     document.getElementById('oct-readout').textContent = 3 + octaveShift;
+    renderOctaveLabels();
     renderPortaRange();
   }
+
+  function renderOctaveLabels(){
+    keyboardEl.querySelectorAll('.oct').forEach(function(el){
+      el.textContent = noteName(BASE_MIDI + Number(el.parentNode.dataset.offset) + octaveShift * 12);
+    });
+  }
+  renderOctaveLabels();
 
   // ---------- PORTA controls ----------
   var portaCtl = document.getElementById('porta-ctl');
