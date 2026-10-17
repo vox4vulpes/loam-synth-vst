@@ -14,6 +14,10 @@ release workflow refuses to publish a version that has no section here.
 - **DaBoom: your own kits.** Each voice's name above its pad picks which
   version to use (e.g. KICK 909 with SNARE Lo-Fi); tweak, name and **SAVE**
   it as your kit, load it from the KIT menu, **DELETE** it when done.
+- **DaBoom: pattern library.** Load a factory groove (House, Boom Bap,
+  Breakbeat, Trap, Techno, Garage, Lazy Groove, Half-Time) or one of yours
+  into the current pattern; **SAVE** the current pattern under a name.
+  Grooves are kept separately from kits, so any groove plays on any kit.
 - Loam Eight Sub gets the same signature: 小鷺 (kosagi, the little egret)
   in its subtitle and the egret beside it — click it.
 
