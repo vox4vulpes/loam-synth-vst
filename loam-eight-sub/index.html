@@ -1,7 +1,7 @@
 <title>Loam Eight Sub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Inclined:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Inclined:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@500&display=swap">
 <style>
   :root{
     --page-bg:#cdc2a4;
@@ -102,6 +102,18 @@
     letter-spacing:.04em;
     color:var(--ink-soft);
   }
+  .brand-sub-text .jp{font-family:'Noto Sans JP',sans-serif; letter-spacing:.08em; font-size:11px; text-transform:none;}
+  /* Easter egg: the little egret (kosagi), white with its famous yellow feet. */
+  .egret{
+    width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;
+    transform-origin:50% 90%;
+  }
+  .egret:hover{transform:rotate(-6deg);}
+  .egret.is-calling{animation:egret-hop .5s ease-out;}
+  @keyframes egret-hop{ 0%{transform:translateY(0)} 30%{transform:translateY(-5px) rotate(-8deg)} 100%{transform:translateY(0)} }
+  @media (prefers-reduced-motion:reduce){ .egret.is-calling{animation:none;} }
+
+  .brand-sub-row{display:flex; align-items:center; gap:6px; min-height:22px;}
   .brand-sub{
     font-family:'IBM Plex Mono',monospace;
     font-size:10px;
@@ -408,13 +420,13 @@
   button.knob-label--toggle:hover{background:rgba(42,36,29,.08);}
   .knob-dial{
     width:56px; height:56px; border-radius:50%;
-    background:conic-gradient(from 135deg, var(--groove-dark) 0deg 270deg, transparent 270deg 360deg);
+    background:conic-gradient(from 225deg, var(--groove-dark) 0deg 270deg, transparent 270deg 360deg);   /* the knob's travel, 7:30 -> 4:30, gap at the bottom */
     display:flex; align-items:center; justify-content:center;
     box-shadow:inset 0 2px 4px var(--shadow);
   }
   .knob-cap{
     width:42px; height:42px; border-radius:50%;
-    background:radial-gradient(circle at 32% 28%, var(--panel-raised), var(--groove) 85%);
+    background:radial-gradient(circle at 50% 22%, var(--panel-raised), var(--groove) 85%);   /* highlight at 12 o'clock: the 50% position */
     box-shadow:0 2px 3px var(--shadow), inset 0 1px 1px rgba(255,255,255,.5);
     cursor:grab;
     touch-action:none;
@@ -599,7 +611,21 @@
       <div class="brand-title">
         <span class="brand-name">LOAM</span><span class="brand-model">EIGHT</span><span class="brand-variant">SUB</span>
       </div>
-      <div class="brand-sub">Polyphonic Voice Synthesizer</div>
+      <div class="brand-sub-row">
+        <div class="brand-sub brand-sub-text" id="brand-sub"><span class="jp" lang="ja">小鷺</span> · Polyphonic Voice Synthesizer</div>
+        <button class="egret" id="egret" type="button" aria-label="Kosagi, the little egret" title="小鷺">
+          <!-- A little egret: white plumes, black bill and legs, yellow feet. -->
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <path d="M14.5 4.2c1.6-.3 2.8.6 2.8 1.8 0 .9-.6 1.5-1.4 1.7-.4 1.7-.2 3.4.6 4.8 1 1.8.5 4-1.6 5.2-1.9 1.1-4.6 1-6.4-.4-1.3-1-1.9-2.4-1.7-3.6 2.2.8 4.1.4 5.4-.9.9-1 .9-2.4.3-3.8-.6-1.4-.4-3.2 2-4.8z"
+                  fill="#fbf8ef" stroke="#2a241d" stroke-width=".8" stroke-linejoin="round"/>
+            <path d="M17.2 5.4l4.6 1.1-4.4.6z" fill="#2a241d"/>
+            <circle cx="15.6" cy="5.2" r=".45" fill="#2a241d"/>
+            <path d="M14.2 4.4c-1.2-.6-2-.3-2.6.4" fill="none" stroke="#2a241d" stroke-width=".5"/>
+            <path d="M10.8 17.6l-.6 4.2M12.6 17.7l.4 4.1" stroke="#2a241d" stroke-width=".9" stroke-linecap="round"/>
+            <path d="M9.3 21.9h1.8M12.3 21.9h1.8" stroke="#e8c32a" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="status-group">
       <div class="readout-window"><span class="readout-label">OCT</span><span class="readout-value" id="oct-readout">3</span></div>
@@ -2029,6 +2055,29 @@
   window.addEventListener('blur', allNotesOff);
 
   window.addEventListener('blur', function(){ setSustainSource('key', false); });
+
+  // ---------- easter egg: 小鷺 (kosagi), the little egret ----------
+  // The same little egret as on Loam DaBoom: click it and it chirps.
+  var egret = document.getElementById('egret'), subText = document.getElementById('brand-sub');
+  var subOriginal = subText.innerHTML, egretTimer = null;
+  egret.addEventListener('click', function(){
+    egret.classList.remove('is-calling'); void egret.offsetWidth; egret.classList.add('is-calling');
+    subText.innerHTML = '<span class="jp" lang="ja">\u30b3\u30b5\u30ae</span> \u00b7 Kosagi \u00b7 little egret';
+    clearTimeout(egretTimer);
+    egretTimer = setTimeout(function(){ subText.innerHTML = subOriginal; }, 2600);
+    ensurePower();
+    var t = audioCtx.currentTime;                           // two quick chirps
+    [0, 0.11].forEach(function(dt, i){
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.setValueAtTime(2600 + i * 500, t + dt);
+      o.frequency.exponentialRampToValueAtTime(3800 + i * 400, t + dt + 0.06);
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.linearRampToValueAtTime(0.12, t + dt + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.08);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t + dt); o.stop(t + dt + 0.1);
+    });
+  });
 
   // ---------- octave ----------
   function setOctaveShift(v){

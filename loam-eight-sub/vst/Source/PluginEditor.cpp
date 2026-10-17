@@ -96,8 +96,9 @@ void LoamLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int wid
     const auto cap = juce::Rectangle<float> (capRadius * 2.0f, capRadius * 2.0f).withCentre (centre);
     g.setColour (shadow);
     g.fillEllipse (cap.translated (0.0f, 1.5f));
-    g.setGradientFill (juce::ColourGradient (panelRaised, centre.x - capRadius * 0.36f, centre.y - capRadius * 0.44f,
-                                             groove, centre.x + capRadius, centre.y + capRadius, true));
+    // The highlight sits straight up, at 12 o'clock: the knob's 50% position.
+    g.setGradientFill (juce::ColourGradient (panelRaised, centre.x, centre.y - capRadius * 0.5f,
+                                             groove, centre.x, centre.y + capRadius * 1.3f, true));
     g.fillEllipse (cap);
 
     juce::Path pointer;
@@ -779,6 +780,31 @@ void WheelView::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+namespace
+{
+    // Same drawing as the web versions (loam-daboom / loam-eight-sub index.html).
+    constexpr const char* egretSvg = R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"> <path d="M14.5 4.2c1.6-.3 2.8.6 2.8 1.8 0 .9-.6 1.5-1.4 1.7-.4 1.7-.2 3.4.6 4.8 1 1.8.5 4-1.6 5.2-1.9 1.1-4.6 1-6.4-.4-1.3-1-1.9-2.4-1.7-3.6 2.2.8 4.1.4 5.4-.9.9-1 .9-2.4.3-3.8-.6-1.4-.4-3.2 2-4.8z" fill="#fbf8ef" stroke="#2a241d" stroke-width=".8" stroke-linejoin="round"/> <path d="M17.2 5.4l4.6 1.1-4.4.6z" fill="#2a241d"/> <circle cx="15.6" cy="5.2" r=".45" fill="#2a241d"/> <path d="M14.2 4.4c-1.2-.6-2-.3-2.6.4" fill="none" stroke="#2a241d" stroke-width=".5"/> <path d="M10.8 17.6l-.6 4.2M12.6 17.7l.4 4.1" stroke="#2a241d" stroke-width=".9" stroke-linecap="round"/> <path d="M9.3 21.9h1.8M12.3 21.9h1.8" stroke="#e8c32a" stroke-width="1.4" stroke-linecap="round"/> </svg>)svg";
+
+    juce::String subtitleText()  { return utf8 ("\xe5\xb0\x8f\xe9\xb7\xba \xc2\xb7 POLYPHONIC VOICE SYNTHESIZER"); }
+    juce::String egretNameText() { return utf8 ("\xe3\x82\xb3\xe3\x82\xb5\xe3\x82\xae \xc2\xb7 KOSAGI \xc2\xb7 LITTLE EGRET"); }
+}
+
+EgretView::EgretView()
+{
+    // createFromImageData recognises SVG text, and exists in every JUCE version.
+    drawable = juce::Drawable::createFromImageData (egretSvg, std::strlen (egretSvg));
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    setTitle ("Kosagi, the little egret");
+    setTooltip (utf8 ("\xe5\xb0\x8f\xe9\xb7\xba"));
+}
+
+void EgretView::paint (juce::Graphics& g)
+{
+    if (drawable != nullptr)
+        drawable->drawWithin (g, getLocalBounds().toFloat(), juce::RectanglePlacement::centred, 1.0f);
+}
+
+//==============================================================================
 PortaRangeStrip::PortaRangeStrip (juce::AudioProcessorValueTreeState& state, LoamKeyboard& kb)
     : apvts (state), keyboard (kb),
       lowParam (state.getParameter ("portaLow")), highParam (state.getParameter ("portaHigh"))
@@ -915,6 +941,22 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
 {
     setLookAndFeel (&lnf);
     addAndMakeVisible (scope);
+
+    brandSub = subtitleText();
+    egret.onClick = [this]
+    {
+        brandSub = egretNameText();
+        repaint (headerArea);
+        juce::Timer::callAfterDelay (2600, [safe = juce::Component::SafePointer<LoamEightSubEditor> (this)]
+        {
+            if (safe != nullptr)
+            {
+                safe->brandSub = subtitleText();
+                safe->repaint (safe->headerArea);
+            }
+        });
+    };
+    addAndMakeVisible (egret);
 
     // ---- presets
     const auto typeNames = [] { auto names = LoamEightSubProcessor::getPresetTypeNames(); names.add ("User"); return names; }();
@@ -1397,7 +1439,7 @@ void LoamEightSubEditor::paint (juce::Graphics& g)
     g.drawText ("SUB", titleRow.withTrimmedBottom (2.0f), juce::Justification::bottomLeft, false);
 
     g.setFont (monoFont (10.0f).withExtraKerningFactor (0.14f));
-    g.drawText ("POLYPHONIC VOICE SYNTHESIZER", brand.removeFromTop (18.0f), juce::Justification::centredLeft, false);
+    g.drawText (brandSub, brand.removeFromTop (18.0f), juce::Justification::centredLeft, false);
 
     // Amber OCT and NOTE readout windows on the right, as in the web header.
     auto readouts = headerArea.toFloat();
@@ -1438,6 +1480,10 @@ void LoamEightSubEditor::resized()
     auto area = getLocalBounds().reduced (pad);
     headerArea = area.removeFromTop (headerHeight);
     area.removeFromTop (gap);
+
+    // The egret stands just after the subtitle, under the brand name.
+    const auto subWidth = juce::GlyphArrangement::getStringWidth (monoFont (10.0f).withExtraKerningFactor (0.14f), subtitleText());
+    egret.setBounds (headerArea.getX() + juce::roundToInt (subWidth) + 8, headerArea.getY() + 30, 22, 22);
 
     scopeBay = area.removeFromTop (scopeHeight);
     scope.setBounds (scopeBay.reduced (10).withTrimmedBottom (14));

@@ -11,8 +11,13 @@ release workflow refuses to publish a version that has no section here.
   rim and cowbell, all synthesised — with a 16-step sequencer (accents, swing,
   patterns A–D), pads, computer-keyboard and MIDI play, 808 / 909 / Lo-Fi
   kits and a master section. The VST3 version follows.
+- Loam Eight Sub gets the same signature: 小鷺 (kosagi, the little egret)
+  in its subtitle and the egret beside it — click it.
 
 ### Fixed
+- Knob caps catch the light straight from the top, at 12 o'clock — the
+  knob's 50% position — and on the web the dark ring around each knob now
+  matches its travel, with the gap at the bottom (it was turned 90°).
 - VST: the sliding DELAY plate no longer covers the left end of the Delay
   on/off switch.
 

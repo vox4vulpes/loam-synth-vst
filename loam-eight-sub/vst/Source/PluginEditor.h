@@ -212,6 +212,20 @@ private:
     float shown = 0.0f;
 };
 
+// Easter egg: 小鷺 (kosagi), the little egret, white with its yellow feet,
+// beside the subtitle. Clicking it spells out its name for a moment.
+class EgretView : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    EgretView();
+    std::function<void()> onClick;
+    void paint (juce::Graphics&) override;
+    void mouseUp (const juce::MouseEvent& e) override { if (contains (e.getPosition()) && onClick) onClick(); }
+
+private:
+    std::unique_ptr<juce::Drawable> drawable;
+};
+
 // Strip under the keyboard showing which keys PORTA glides on. Drag either
 // end (or click a key) to move the nearer end of the range.
 class PortaRangeStrip : public juce::Component
@@ -327,6 +341,8 @@ private:
     Module fx            { "Effects",    LoamColours::lavender, {} };
     Module out           { "Output",     LoamColours::mustard,  {} };
 
+    EgretView egret;
+    juce::String brandSub;   // "小鷺 · POLYPHONIC VOICE SYNTHESIZER", or the egret's name for a moment
     juce::Rectangle<int> headerArea, scopeBay, keyboardBay, sustainLight;
     int shownNote = -2;
     bool shownSustain = false;
