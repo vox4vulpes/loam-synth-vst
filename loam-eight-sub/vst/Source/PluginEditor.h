@@ -118,7 +118,7 @@ private:
 
 // One vertical effect unit: name, on/off slide switch, knobs stacked below.
 // Off dims the knobs but leaves them adjustable.
-class FxUnit : public juce::Component
+class FxUnit : public juce::Component, private juce::Timer
 {
 public:
     FxUnit (juce::AudioProcessorValueTreeState&, const juce::String& title, const juce::String& switchId,
@@ -130,12 +130,14 @@ public:
     void refreshDimming();
     const std::array<std::unique_ptr<LoamKnob>, 3>& getKnobs() const { return knobs; }
 
-    // Delay only: hovering the title shows a NORMAL / PING-PONG choice for a
-    // choice parameter, and ping-pong puts a table-tennis paddle behind the knobs.
-    void enableTypeMenu (juce::RangedAudioParameter& typeParam);
-    void mouseMove (const juce::MouseEvent&) override;
+    // Delay only: DELAY sits on a little plate; hovering slides it up under the
+    // panel and uncovers a recess showing the delay's real nature (NORMAL /
+    // PING-PONG); clicking switches. Ping-pong also puts a paddle in the corner.
+    void enableTypeBlind (juce::RangedAudioParameter& typeParam);
+    void paintOverChildren (juce::Graphics&) override;
     void mouseEnter (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
 
 private:
     juce::AudioProcessorValueTreeState& apvts;
@@ -145,17 +147,11 @@ private:
     juce::AudioProcessorValueTreeState::ButtonAttachment toggleAttachment;
     std::array<std::unique_ptr<LoamKnob>, 3> knobs;
 
-    struct TypeMenu : public juce::Component
-    {
-        juce::TextButton normal { "NORMAL" }, pingPong { "PING-PONG" };
-        TypeMenu();
-        void paint (juce::Graphics&) override;
-        void resized() override;
-    };
-    TypeMenu typeMenu;
     std::unique_ptr<juce::ParameterAttachment> typeAttachment;
     bool pingPong = false;
-    void updateTypeMenuVisibility (juce::Point<int> mouseInUnit);
+    float blind = 0.0f;          // 0: plate down (DELAY) .. 1: slid away (type shows)
+    bool blindTarget = false;
+    void timerCallback() override;   // animates the roll
     static void drawPaddle (juce::Graphics&, juce::Rectangle<float> area);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FxUnit)

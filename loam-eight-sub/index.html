@@ -287,16 +287,27 @@
   .fx-head{display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;}
   .fx-unit .knob-row{flex-direction:column; align-items:center; gap:12px;}
   .fx-unit{position:relative;}
-  /* Delay type: hover the DELAY title to pick NORMAL or PING-PONG. */
-  .fx-type-menu{
-    display:none; position:absolute; z-index:5; left:4px; right:4px; top:28px;
-    flex-direction:column; gap:3px; padding:4px;
-    background:var(--panel-raised); border:1px solid var(--groove-dark); border-radius:6px;
-    box-shadow:0 2px 6px var(--shadow);
+  /* Delay type: DELAY sits on a little plate. Hovering slides the plate up and
+     under the panel, uncovering a recess that shows the delay's real nature,
+     NORMAL or PING-PONG. Click switches. */
+  .fx-type{
+    position:relative; display:inline-block; cursor:pointer; outline:none;
+    width:46px; height:14px; vertical-align:middle;
+    overflow:hidden; border-radius:3px;
   }
-  .fx-type-menu .chip-btn{padding:3px 0; font-size:10px;}
-  .fx-head .fx-sub[data-type-menu]{cursor:default; text-decoration:underline dotted; text-underline-offset:3px;}
-  .fx-head:hover + .fx-type-menu, .fx-head:focus-within + .fx-type-menu, .fx-type-menu:hover{display:flex;}
+  .fx-type-under{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; white-space:nowrap;
+    font-size:7px; letter-spacing:0; color:var(--ink);
+    background:rgba(42,36,29,.16); border-radius:3px;
+    box-shadow:inset 0 2px 3px var(--shadow), inset 0 -1px 0 rgba(255,255,255,.35);   /* sunk into the panel */
+  }
+  .fx-type-blind{
+    position:absolute; inset:0; display:flex; align-items:center; white-space:nowrap;
+    background:var(--panel);
+    transition:transform .25s ease-in-out;
+  }
+  .fx-type:hover .fx-type-blind, .fx-type:focus-visible .fx-type-blind{transform:translateY(-100%);}
+  @media (prefers-reduced-motion:reduce){ .fx-type-blind{transition:none;} }
   /* Ping-pong: a table-tennis paddle and ball in the unit's bottom-right corner. */
   .fx-unit.is-pingpong::after{
     content:''; position:absolute; right:3px; bottom:4px; width:24px; height:28px; pointer-events:none;
@@ -663,12 +674,8 @@
       <div class="fx-rack" data-page="0">
         <div class="fx-unit is-off" data-fx="delay">
           <div class="fx-head">
-            <span class="fx-sub" id="fx-delay-label" data-type-menu tabindex="0">Delay</span>
+            <span class="fx-sub fx-type" id="fx-delay-label" role="button" tabindex="0"><span class="fx-type-under" id="fx-delay-type" aria-hidden="true"></span><span class="fx-type-blind">Delay</span></span>
             <label class="fx-switch"><input type="checkbox" id="fx-delay-on" role="switch" aria-labelledby="fx-delay-label"><span class="fx-track" aria-hidden="true"></span></label>
-          </div>
-          <div class="fx-type-menu" role="group" aria-label="Delay type">
-            <button class="chip-btn" type="button" data-delay-mode="normal">NORMAL</button>
-            <button class="chip-btn" type="button" data-delay-mode="pingpong">PING-PONG</button>
           </div>
           <div class="knob-row" id="delay-knobs"></div>
         </div>
@@ -1605,21 +1612,22 @@
   document.getElementById('fx-next').addEventListener('click', function(){ setFxPage(fxPage + 1); });
 
   // ---------- delay type: normal / ping-pong ----------
-  var delayModeButtons = document.querySelectorAll('[data-delay-mode]');
+  // Hover the DELAY title: its plate slides up under the panel and uncovers the
+  // current type, NORMAL or PING-PONG, in a recess. Click (or Enter / Space) switches it.
+  var delayTypeLabel = document.getElementById('fx-delay-label');
   function setDelayMode(mode){
     params.delayMode = mode;
-    delayModeButtons.forEach(function(b){
-      var on = b.dataset.delayMode === mode;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    var unit = document.querySelector('.fx-unit[data-fx="delay"]');
-    unit.classList.toggle('is-pingpong', mode === 'pingpong');
-    document.getElementById('fx-delay-label').title = 'Delay type: ' + (mode === 'pingpong' ? 'ping-pong' : 'normal') + ' (hover to change)';
+    var name = mode === 'pingpong' ? 'PING-PONG' : 'NORMAL';
+    document.getElementById('fx-delay-type').textContent = name;
+    document.querySelector('.fx-unit[data-fx="delay"]').classList.toggle('is-pingpong', mode === 'pingpong');
+    delayTypeLabel.setAttribute('aria-label', 'Delay type: ' + name + ' (click to switch)');
+    delayTypeLabel.title = 'Delay type: ' + (mode === 'pingpong' ? 'ping-pong' : 'normal') + ' (click to switch)';
     updateFxGains();
   }
-  delayModeButtons.forEach(function(b){
-    b.addEventListener('click', function(){ setDelayMode(b.dataset.delayMode); b.blur(); });   // let the menu close
+  function toggleDelayMode(){ setDelayMode(params.delayMode === 'pingpong' ? 'normal' : 'pingpong'); }
+  delayTypeLabel.addEventListener('click', toggleDelayMode);
+  delayTypeLabel.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleDelayMode(); }
   });
   setDelayMode(params.delayMode);
 
