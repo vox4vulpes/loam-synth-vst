@@ -11,6 +11,9 @@ release workflow refuses to publish a version that has no section here.
   rim and cowbell, all synthesised — with a 16-step sequencer (accents, swing,
   patterns A–D), pads, computer-keyboard and MIDI play, 808 / 909 / Lo-Fi
   kits and a master section. The VST3 version follows.
+- **DaBoom: your own kits.** Each voice's name above its pad picks which
+  version to use (e.g. KICK 909 with SNARE Lo-Fi); tweak, name and **SAVE**
+  it as your kit, load it from the KIT menu, **DELETE** it when done.
 - Loam Eight Sub gets the same signature: 小鷺 (kosagi, the little egret)
   in its subtitle and the egret beside it — click it.
 
