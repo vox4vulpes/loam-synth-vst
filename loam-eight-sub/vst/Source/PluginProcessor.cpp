@@ -62,7 +62,10 @@ namespace
             { reverbMixId, r.reverbMix }, { reverbSizeId, r.reverbSize }, { reverbToneId, r.reverbTone },
             { delayOnId, r.delayMix > 0 ? 1.0f : 0.0f }, { reverbOnId, r.reverbMix > 0 ? 1.0f : 0.0f },
             { satOnId, 0.0f }, { distOnId, 0.0f },   // factory sounds are clean
-        } };
+            // Every preset sets up the wheels too: VIB, +-2, nothing on CUST,
+            // unless the sound says otherwise (see factoryWheels below).
+            { modModeId, 0.0f }, { bendRangeId, 1.0f },
+        }, {} };
     }
 
     template <size_t N>
@@ -72,6 +75,27 @@ namespace
         for (const auto& r : rows)
             out.push_back (toPreset (r));
         return out;
+    }
+
+    // Wheel setups for some factory sounds (same as the web's FACTORY_WHEELS).
+    struct FactoryWheels
+    {
+        int type;            // 0 Lead, 1 Bass, 2 Pad, 3 Pluck
+        const char* name;
+        int modMode;         // 0 VIB, 1 FILT, 2 CUST
+        int bendSemis;
+        std::vector<LoamEightSubProcessor::WheelAssignment> modMap;
+    };
+
+    const std::vector<FactoryWheels>& factoryWheels()
+    {
+        static const std::vector<FactoryWheels> list {
+            { 0, "Detuned Saw", 0, 12, {} },
+            { 1, "Acid",        1, 2,  {} },
+            { 2, "Classic",     2, 2,  { { cutoffId, 1800.0f, 8000.0f }, { reverbMixId, 45.0f, 90.0f } } },
+            { 2, "Dark Drone",  1, 2,  {} },
+        };
+        return list;
     }
 
     // Presets and projects saved before the effect switches existed have no
@@ -434,8 +458,28 @@ const juce::StringArray& LoamEightSubProcessor::getPresetTypeNames()
 
 const std::vector<LoamEightSubProcessor::Preset>& LoamEightSubProcessor::getFactoryPresets (int typeIndex)
 {
-    static const std::vector<Preset> lead = toPresets (leadRows), bass = toPresets (bassRows),
-                                     pad = toPresets (padRows), pluck = toPresets (pluckRows), none;
+    static const std::array<std::vector<Preset>, 4> all = []
+    {
+        std::array<std::vector<Preset>, 4> types { toPresets (leadRows), toPresets (bassRows),
+                                                   toPresets (padRows), toPresets (pluckRows) };
+        for (const auto& w : factoryWheels())
+            for (auto& preset : types[(size_t) w.type])
+                if (preset.name == w.name)
+                {
+                    for (auto& [id, value] : preset.values)
+                    {
+                        if (id == modModeId)   value = (float) w.modMode;
+                        if (id == bendRangeId) value = (float) (w.bendSemis - 1);   // choice index
+                    }
+                    preset.modMap = w.modMap;
+                }
+        return types;
+    }();
+    static const std::vector<Preset> none;
+    const auto& lead = all[0];
+    const auto& bass = all[1];
+    const auto& pad = all[2];
+    const auto& pluck = all[3];
     switch (typeIndex)
     {
         case 0:  return lead;
@@ -460,6 +504,23 @@ void LoamEightSubProcessor::applyPresetValues (const ParamValues& values)
             param->endChangeGesture();
         }
     }
+}
+
+void LoamEightSubProcessor::applyFactoryPreset (int typeIndex, int index)
+{
+    const auto& list = getFactoryPresets (typeIndex);
+    if (! juce::isPositiveAndBelow (index, (int) list.size()))
+        return;
+
+    const auto& preset = list[(size_t) index];
+    applyPresetValues (preset.values);
+
+    // The preset's CUST assignments replace the current ones.
+    for (const auto& id : getModTargetIds())
+        setModBinding (id, {});
+    for (const auto& a : preset.modMap)
+        if (auto* param = apvts.getParameter (a.paramId))
+            setModBinding (a.paramId, { true, a.to < a.from, param->convertTo0to1 (a.from), param->convertTo0to1 (a.to) });
 }
 
 juce::File LoamEightSubProcessor::getUserPresetFolder()

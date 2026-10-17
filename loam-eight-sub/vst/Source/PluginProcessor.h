@@ -53,15 +53,25 @@ public:
     // as the web version), plus user presets saved as XML files on disk.
     using ParamValues = std::vector<std::pair<juce::String, float>>;
 
+    // A CUST assignment in knob units: the wheel takes the knob from `from`
+    // (wheel down) to `to` (wheel up).
+    struct WheelAssignment
+    {
+        juce::String paramId;
+        float from, to;
+    };
+
     struct Preset
     {
         juce::String name;
-        ParamValues values;
+        ParamValues values;                      // includes mod mode and bend range
+        std::vector<WheelAssignment> modMap;     // CUST assignments; none = all knobs free
     };
 
     static const juce::StringArray& getPresetTypeNames();          // Lead, Bass, Pad, Pluck
     static const std::vector<Preset>& getFactoryPresets (int typeIndex);
     void applyPresetValues (const ParamValues&);
+    void applyFactoryPreset (int typeIndex, int index);
 
     static juce::File getUserPresetFolder();
     juce::StringArray getUserPresetNames() const;

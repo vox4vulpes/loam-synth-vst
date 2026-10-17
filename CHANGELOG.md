@@ -12,13 +12,17 @@ release workflow refuses to publish a version that has no section here.
   set its range, ±1 to ±12 semitones (default ±2), shown on the wheel. The
   button above the mod wheel steps its mode: **VIB** (vibrato, up to ±60
   cents at 5.5 Hz), **FILT** (opens the filter up to 4 octaves) or **CUST**.
-  Mod mode and bend range are saved with user presets.
 - **CUST mod wheel: put any knob on the wheel.** In CUST every knob gets a
   small button: click once to assign it (green), again to reverse it (red),
   a third time to free it. An assigned knob shows a red and a green dot on its
   ring — drag them to set where the wheel takes it, from red (wheel down) to
-  green (wheel up). One wheel can drive any number of knobs. Assignments are
-  saved with the project (VST) and with user presets.
+  green (wheel up). One wheel can drive any number of knobs.
+- **Presets set up the wheels.** Every preset — factory and user — carries
+  its mod mode, bend range and CUST assignments with their dots; the VST also
+  keeps them with the project. Factory sounds default to VIB, ±2 and nothing
+  assigned, and a few come with their own: Lead · Detuned Saw bends ±12,
+  Bass · Acid and Pad · Dark Drone use FILT, and Pad · Classic puts Cutoff
+  (1800 → 8000 Hz) and Reverb Mix (45 → 90%) on the wheel.
 - Every C on the on-screen keyboard shows its octave (C3, C4, C5...).
 - **Web: the keyboard always fits** — no more sideways scrolling. Click
   **OCTAVE** to switch to the full range, C1–C8, at real key widths in a

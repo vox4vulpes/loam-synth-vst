@@ -1041,7 +1041,7 @@ void LoamEightSubEditor::loadPresetVersion (int index)
     }
     else
     {
-        audioProcessor.applyPresetValues (LoamEightSubProcessor::getFactoryPresets (presetType)[(size_t) presetIndex].values);
+        audioProcessor.applyFactoryPreset (presetType, presetIndex);
     }
 
     refreshPresetControls();

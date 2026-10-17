@@ -1285,6 +1285,7 @@
     knobs.set(def.id, {
       setValue: setValue,
       getValue: function(){ return value; },
+      toT: valueToT,
       getBinding: function(){ return bind ? { red: bind.red, green: bind.green, reversed: bind.reversed } : null; },
       setBinding: function(b){ bind = b ? { red: b.red, green: b.green, reversed: !!b.reversed } : null; renderBinding(); },
       setMod: setMod
@@ -1541,6 +1542,11 @@
     p.delayOn = p.delayMix > 0;
     p.reverbOn = p.reverbMix > 0;
     p.satOn = p.distOn = false;   // factory sounds are clean
+    // Every preset sets up the wheels too: VIB, +-2 and nothing on CUST unless
+    // the sound says otherwise (see FACTORY_WHEELS).
+    p.modMode = 'vib';
+    p.bendRange = 2;
+    p.modMap = {};
     return { name: name, params: p };
   }
   //                                      tune sub cutoff reso atk  dec  sus rel   vol  dTime dFb dMix rMix rSize rTone
@@ -1570,6 +1576,21 @@
       preset('Short Square', 'square',   [0,  20, 2200, 6,   1,   120, 0,  120,  70,  160,  45, 28,  12,  1.2, 5000])
     ]
   };
+  // Wheel setups for some factory sounds. CUST entries are in knob units:
+  // the wheel takes the knob from `from` (wheel down) to `to` (wheel up).
+  var FACTORY_WHEELS = [
+    { type:'LEAD', name:'Detuned Saw', bendRange:12 },
+    { type:'BASS', name:'Acid',        modMode:'filter' },
+    { type:'PAD',  name:'Classic',     modMode:'custom', modMap:{ cutoff:{ from:1800, to:8000 }, reverbMix:{ from:45, to:90 } } },
+    { type:'PAD',  name:'Dark Drone',  modMode:'filter' }
+  ];
+  FACTORY_WHEELS.forEach(function(w){
+    var p = FACTORY_PRESETS[w.type].filter(function(x){ return x.name === w.name; })[0].params;
+    if (w.modMode) p.modMode = w.modMode;
+    if (w.bendRange) p.bendRange = w.bendRange;
+    if (w.modMap) p.modMap = w.modMap;
+  });
+
   var PRESET_TYPES = [
     { id:'LEAD', label:'Lead' }, { id:'BASS', label:'Bass' }, { id:'PAD', label:'Pad' },
     { id:'PLUCK', label:'Pluck' }, { id:'USER', label:'User' }
@@ -1614,7 +1635,11 @@
         knobs.get(key).setValue(p[key]);
       }
     });
-    if (p.modMap) knobs.forEach(function(k, id){ k.setBinding(p.modMap[id] || null); });
+    if (p.modMap) knobs.forEach(function(k, id){
+      var b = p.modMap[id];
+      if (b && b.from !== undefined) b = { red: k.toT(b.from), green: k.toT(b.to), reversed: b.to < b.from };
+      k.setBinding(b || null);
+    });
     if (p.modMode) setModMode(p.modMode);
     else refreshCustomMod();
     if (p.bendRange) setBendRange(p.bendRange);
