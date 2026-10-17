@@ -223,7 +223,14 @@ private:
     std::unique_ptr<juce::ParameterAttachment> waveAttachment;
 
     LoamKnob tune, sub, cutoff, resonance, attack, decay, sustain, release, volume;
-    FxUnit delayUnit, reverbUnit;
+    FxUnit delayUnit, reverbUnit, satUnit, distUnit;
+
+    // Effects pages, flipped with the arrows in the module's title row.
+    static constexpr int numFxPages = 2;
+    int fxPage = 0;
+    juce::TextButton fxPrev { "<" }, fxNext { ">" };
+    juce::Label fxPageName;
+    void setFxPage (int page);
 
     LoamKeyboard keyboard;
     juce::TextButton octaveDown { "-" }, octaveUp { "+" };

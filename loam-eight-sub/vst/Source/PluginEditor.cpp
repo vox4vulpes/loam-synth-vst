@@ -614,6 +614,14 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
                   { std::make_unique<LoamKnob> (p.apvts, "reverbMix", "Mix", lavender, "%"),
                     std::make_unique<LoamKnob> (p.apvts, "reverbSize", "Size", lavender, "s", 1),
                     std::make_unique<LoamKnob> (p.apvts, "reverbTone", "Tone", lavender, "Hz") }),
+      satUnit (p.apvts, "Sat", "satOn", "satMix",
+               { std::make_unique<LoamKnob> (p.apvts, "satDrive", "Drive", lavender, "%"),
+                 std::make_unique<LoamKnob> (p.apvts, "satTone", "Tone", lavender, "Hz"),
+                 std::make_unique<LoamKnob> (p.apvts, "satMix", "Mix", lavender, "%") }),
+      distUnit (p.apvts, "Dist", "distOn", "distMix",
+                { std::make_unique<LoamKnob> (p.apvts, "distDrive", "Drive", lavender, "%"),
+                  std::make_unique<LoamKnob> (p.apvts, "distTone", "Tone", lavender, "Hz"),
+                  std::make_unique<LoamKnob> (p.apvts, "distMix", "Mix", lavender, "%") }),
       keyboard (p.keyboardState),
       portaToggleAttachment (p.apvts, "portaOn", portaToggle),
       glideAttachment (p.apvts, "portaTime", glideSlider),
@@ -689,6 +697,25 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
         addAndMakeVisible (*k);
     addAndMakeVisible (delayUnit);
     addAndMakeVisible (reverbUnit);
+    addChildComponent (satUnit);
+    addChildComponent (distUnit);
+
+    for (auto* b : { &fxPrev, &fxNext })
+    {
+        b->setWantsKeyboardFocus (false);
+        b->setColour (juce::TextButton::buttonOnColourId, lavender);
+        addAndMakeVisible (*b);
+    }
+    fxPageName.setFont (monoFont (10.0f).withExtraKerningFactor (0.12f));
+    fxPageName.setColour (juce::Label::textColourId, lavender);
+    fxPageName.setJustificationType (juce::Justification::centred);
+    fxPageName.setBorderSize ({});
+    addAndMakeVisible (fxPageName);
+    fxPrev.setTitle ("Previous effects page");
+    fxNext.setTitle ("Next effects page");
+    fxPrev.onClick = [this] { setFxPage (fxPage - 1); };
+    fxNext.onClick = [this] { setFxPage (fxPage + 1); };
+    setFxPage (0);
 
     // ---- keyboard
     keyboard.setColour (juce::MidiKeyboardComponent::whiteNoteColourId, panelRaised);
@@ -935,6 +962,17 @@ void LoamEightSubEditor::setStatus (const juce::String& text)
     presetStatus.setText (text, juce::dontSendNotification);
 }
 
+void LoamEightSubEditor::setFxPage (int page)
+{
+    // Page 0: time effects (delay, reverb). Page 1: drive (saturation, distortion).
+    fxPage = (page % numFxPages + numFxPages) % numFxPages;
+    delayUnit.setVisible (fxPage == 0);
+    reverbUnit.setVisible (fxPage == 0);
+    satUnit.setVisible (fxPage == 1);
+    distUnit.setVisible (fxPage == 1);
+    fxPageName.setText (fxPage == 0 ? "TIME" : "DRIVE", juce::dontSendNotification);
+}
+
 void LoamEightSubEditor::setOctave (int shift)
 {
     octaveShift = juce::jlimit (-2, 2, shift);
@@ -948,8 +986,8 @@ void LoamEightSubEditor::timerCallback()
     scope.update (audioProcessor);
 
     // Effect switches can also change from host automation or a preset.
-    delayUnit.refreshDimming();
-    reverbUnit.refreshDimming();
+    for (auto* unit : { &delayUnit, &reverbUnit, &satUnit, &distUnit })
+        unit->refreshDimming();
 
     if (const auto note = audioProcessor.lastNote.load(); note != shownNote)
     {
@@ -1154,8 +1192,16 @@ void LoamEightSubEditor::resized()
     // ---- effects: two vertical units side by side
     auto fxArea = content (fx);
     const auto unitWidth = (fxArea.getWidth() - 10) / 2;
-    delayUnit.setBounds (fxArea.removeFromLeft (unitWidth));
-    reverbUnit.setBounds (fxArea.removeFromRight (unitWidth));
+    const auto leftUnit = fxArea.removeFromLeft (unitWidth), rightUnit = fxArea.removeFromRight (unitWidth);
+    delayUnit.setBounds (leftUnit);
+    reverbUnit.setBounds (rightUnit);
+    satUnit.setBounds (leftUnit);
+    distUnit.setBounds (rightUnit);
+
+    auto fxTitleRow = fx.bounds.reduced (12, 0).withTrimmedTop (7).withHeight (18);
+    fxNext.setBounds (fxTitleRow.removeFromRight (22));
+    fxPageName.setBounds (fxTitleRow.removeFromRight (50));
+    fxPrev.setBounds (fxTitleRow.removeFromRight (22));
 
     // ---- keyboard with octave buttons above it
     auto kb = keyboardBay.reduced (8);

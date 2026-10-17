@@ -7,6 +7,7 @@ void SynthEngine::prepare (double newSampleRate, int samplesPerBlock)
         v = Voice {};
 
     z1 = z2 = 0.0;
+    satToneState = distToneState = 0.0;
     delayLine.reset();
     delayLine.setMaximumDelayInSamples ((int) (sampleRate * 1.0) + 4);
     delayLine.prepare ({ sampleRate, (juce::uint32) samplesPerBlock, 1 });
@@ -177,6 +178,31 @@ int SynthEngine::getNumActiveVoices() const
     return n;
 }
 
+float SynthEngine::processDrive (float x, const Drive& d, bool hardClip, double toneCoef, double& toneState) const
+{
+    if (! d.on)
+        return x;
+
+    double wet;
+    if (hardClip)
+    {
+        // Distortion: up to 40x gain into an asymmetric clip (a touch of even harmonics).
+        const auto g = 1.0 + d.drivePct / 100.0 * 39.0;
+        const auto y = juce::jlimit (-0.6, 0.8, g * x);
+        wet = y * std::pow (g, -0.35);
+    }
+    else
+    {
+        // Saturation: up to 10x gain into tanh, scaled back so it stays near the dry level.
+        const auto g = 1.0 + d.drivePct / 100.0 * 9.0;
+        wet = std::tanh (g * x) / std::sqrt (g);
+    }
+
+    toneState += (wet - toneState) * toneCoef;
+    const auto mix = d.mixPct / 100.0;
+    return (float) (x * (1.0 - mix) + toneState * mix);
+}
+
 void SynthEngine::startRelease (Voice& v)
 {
     v.keyDown = false;
@@ -312,6 +338,9 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
     // Pass 1: voices -> shared filter -> dry + delay send straight into the
     // output buffer; the post-filter signal is also stashed for the reverb,
     // which (unlike the delay line) only offers block-based processing.
+    auto toneCoef = [this] (float hz) { return 1.0 - std::exp (-juce::MathConstants<double>::twoPi * hz / sampleRate); };
+    const auto satToneCoef = toneCoef (saturation.toneHz), distToneCoef = toneCoef (distortion.toneHz);
+
     // ~5 ms smoothing so wheel steps don't click; vibrato LFO at 5.5 Hz.
     const double bendCoef = 1.0 - std::exp (-1.0 / (0.005 * sampleRate));
     const double lfoStep = 5.5 / sampleRate;
@@ -366,7 +395,9 @@ void SynthEngine::render (juce::AudioBuffer<float>& buffer, int startSample, int
         const double y = b0 * x + z1;
         z1 = b1 * x + z2 - a1 * y;
         z2 = b2 * x - a2 * y;
-        const float filtered = (float) y;
+        float filtered = (float) y;
+        filtered = processDrive (filtered, saturation, false, satToneCoef, satToneState);
+        filtered = processDrive (filtered, distortion, true, distToneCoef, distToneState);
 
         // Delay send (feedback line read-before-write).
         const float delayRead = delayLine.popSample (0, (float) delaySamples, true);

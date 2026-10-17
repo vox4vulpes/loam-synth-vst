@@ -13,6 +13,12 @@ release workflow refuses to publish a version that has no section here.
   (vibrato, up to ±60 cents at 5.5 Hz) or **FILT** (opens the filter up to 4
   octaves). Mod mode and bend range are saved with user presets.
 - Every C on the on-screen keyboard shows its octave (C3, C4, C5...).
+- **Effects pages**, flipped with the ‹ › arrows in the Effects title:
+  **TIME** (Delay, Reverb) and the new **DRIVE** page with **Saturation**
+  (soft, warm) and **Distortion** (hard, asymmetric clip), each with Drive,
+  Tone and Mix and its own on/off switch. They sit after the filter and
+  before delay and reverb. Factory presets leave them off; user presets save
+  them.
 
 ## [1.3.0]
 

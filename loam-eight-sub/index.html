@@ -260,7 +260,15 @@
     margin:0;
   }
 
+  .fx-title-row{display:flex; align-items:center; gap:4px;}
+  .fx-title-row .module-title{margin-right:auto;}
+  .fx-page-btn{min-width:22px; padding:2px 0; --accent:var(--lavender);}
+  .fx-page-name{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;
+    color:var(--lavender); min-width:44px; text-align:center;
+  }
   .fx-rack{display:flex; gap:10px; flex-wrap:wrap;}
+  .fx-rack[hidden]{display:none;}
   .fx-unit{
     flex:1 1 92px;
     display:flex;
@@ -593,8 +601,13 @@
     </section>
 
     <section class="module module--wide" style="--accent:var(--lavender); --area:fx">
-      <h2 class="module-title">Effects</h2>
-      <div class="fx-rack">
+      <div class="fx-title-row">
+        <h2 class="module-title">Effects</h2>
+        <button class="chip-btn fx-page-btn" type="button" id="fx-prev" aria-label="Previous effects page">&lsaquo;</button>
+        <span class="fx-page-name" id="fx-page-name" aria-live="polite">TIME</span>
+        <button class="chip-btn fx-page-btn" type="button" id="fx-next" aria-label="Next effects page">&rsaquo;</button>
+      </div>
+      <div class="fx-rack" data-page="0">
         <div class="fx-unit is-off" data-fx="delay">
           <div class="fx-head">
             <span class="fx-sub" id="fx-delay-label">Delay</span>
@@ -608,6 +621,22 @@
             <label class="fx-switch"><input type="checkbox" id="fx-reverb-on" role="switch" aria-labelledby="fx-reverb-label"><span class="fx-track" aria-hidden="true"></span></label>
           </div>
           <div class="knob-row" id="reverb-knobs"></div>
+        </div>
+      </div>
+      <div class="fx-rack" data-page="1" hidden>
+        <div class="fx-unit is-off" data-fx="sat">
+          <div class="fx-head">
+            <span class="fx-sub" id="fx-sat-label" title="Saturation" aria-label="Saturation">Sat</span>
+            <label class="fx-switch"><input type="checkbox" id="fx-sat-on" role="switch" aria-labelledby="fx-sat-label"><span class="fx-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="knob-row" id="sat-knobs"></div>
+        </div>
+        <div class="fx-unit is-off" data-fx="dist">
+          <div class="fx-head">
+            <span class="fx-sub" id="fx-dist-label" title="Distortion" aria-label="Distortion">Dist</span>
+            <label class="fx-switch"><input type="checkbox" id="fx-dist-on" role="switch" aria-labelledby="fx-dist-label"><span class="fx-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="knob-row" id="dist-knobs"></div>
         </div>
       </div>
     </section>
@@ -676,6 +705,7 @@
     attack:10, decay:150, sustain:70, release:300, volume:70,
     delayTime:220, delayFeedback:30, delayMix:0, reverbMix:0, reverbSize:2.2, reverbTone:6000,
     // Portamento: a performance setting, not part of presets.
+    satDrive:30, satTone:8000, satMix:50, distDrive:40, distTone:5000, distMix:50,
     portaOn:false, portaTime:150, portaLow:60, portaHigh:76,
     // Wheels: what the mod wheel does, and how far pitch bend reaches (semitones).
     modMode:'vib', bendRange:2
@@ -686,7 +716,8 @@
   var vibratoGain = null;
   var audioCtx = null, masterFilter = null, masterGain = null, analyser = null, scopeStarted = false;
   // Effect units can be switched off without losing their knob settings.
-  var fxOn = { delay: false, reverb: false };
+  var fxOn = { delay: false, reverb: false, sat: false, dist: false };
+  var satStage = null, distStage = null;
   var delayNode = null, delayFeedbackGain = null, delayWetGain = null;
   var convolver = null, reverbToneFilter = null, reverbWetGain = null, reverbRegenTimer = null;
   var activeVoices = new Map();
@@ -759,7 +790,13 @@
 
     var dryGain = audioCtx.createGain();
     dryGain.gain.value = 1;
-    masterFilter.connect(dryGain);
+    // Drive stages after the filter: saturation, then distortion.
+    satStage = makeDriveStage(masterFilter, false);
+    distStage = makeDriveStage(satStage.out, true);
+    var driveOut = distStage.out;
+    updateDrive();
+
+    driveOut.connect(dryGain);
     dryGain.connect(sumBus);
 
     delayNode = audioCtx.createDelay(1.0);
@@ -768,7 +805,7 @@
     delayFeedbackGain.gain.value = fxOn.delay ? params.delayFeedback / 100 : 0;
     delayWetGain = audioCtx.createGain();
     delayWetGain.gain.value = fxOn.delay ? params.delayMix / 100 : 0;
-    masterFilter.connect(delayNode);
+    driveOut.connect(delayNode);
     delayNode.connect(delayFeedbackGain);
     delayFeedbackGain.connect(delayNode);
     delayNode.connect(delayWetGain);
@@ -782,7 +819,7 @@
     reverbToneFilter.frequency.value = params.reverbTone;
     reverbWetGain = audioCtx.createGain();
     reverbWetGain.gain.value = fxOn.reverb ? params.reverbMix / 100 : 0;
-    masterFilter.connect(convolver);
+    driveOut.connect(convolver);
     convolver.connect(reverbToneFilter);
     reverbToneFilter.connect(reverbWetGain);
     reverbWetGain.connect(sumBus);
@@ -1191,7 +1228,19 @@
         reverbRegenTimer = setTimeout(function(){ convolver.buffer = createReverbImpulse(audioCtx, v, 3.0); }, 150);
       } },
     { id:'reverbTone', module:'reverb-knobs', label:'TONE', min:500, max:12000, def:6000, unit:'Hz', log:true,
-      onInput:function(v){ params.reverbTone = v; if (reverbToneFilter) reverbToneFilter.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01); } }
+      onInput:function(v){ params.reverbTone = v; if (reverbToneFilter) reverbToneFilter.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01); } },
+    { id:'satDrive', module:'sat-knobs', label:'DRIVE', min:0, max:100, def:30, unit:'%',
+      onInput:function(v){ params.satDrive = v; updateDrive(); } },
+    { id:'satTone', module:'sat-knobs', label:'TONE', min:500, max:12000, def:8000, unit:'Hz', log:true,
+      onInput:function(v){ params.satTone = v; updateDrive(); } },
+    { id:'satMix', module:'sat-knobs', label:'MIX', min:0, max:100, def:50, unit:'%',
+      onInput:function(v){ params.satMix = v; updateDrive(); } },
+    { id:'distDrive', module:'dist-knobs', label:'DRIVE', min:0, max:100, def:40, unit:'%',
+      onInput:function(v){ params.distDrive = v; updateDrive(); } },
+    { id:'distTone', module:'dist-knobs', label:'TONE', min:500, max:12000, def:5000, unit:'Hz', log:true,
+      onInput:function(v){ params.distTone = v; updateDrive(); } },
+    { id:'distMix', module:'dist-knobs', label:'MIX', min:0, max:100, def:50, unit:'%',
+      onInput:function(v){ params.distMix = v; updateDrive(); } }
   ];
 
   KNOB_DEFS.forEach(function(def){
@@ -1308,6 +1357,54 @@
     reverbWetGain.gain.setTargetAtTime(fxOn.reverb ? params.reverbMix / 100 : 0, t, 0.01);
   }
 
+  // ---------- drive stages (same curves as the VST engine) ----------
+  function driveCurve(drive, hard){
+    var n = 2048, curve = new Float32Array(n);
+    var g = hard ? 1 + drive / 100 * 39 : 1 + drive / 100 * 9;
+    for (var i = 0; i < n; i++) {
+      var x = i / (n - 1) * 2 - 1;
+      curve[i] = hard ? Math.max(-0.6, Math.min(0.8, g * x)) * Math.pow(g, -0.35)   // asymmetric hard clip
+                      : Math.tanh(g * x) / Math.sqrt(g);                              // soft saturation
+    }
+    return curve;
+  }
+  function makeDriveStage(input, hard){
+    var st = { hard: hard, drive: null };
+    st.out = audioCtx.createGain();
+    st.dry = audioCtx.createGain();
+    st.shaper = audioCtx.createWaveShaper();
+    st.shaper.oversample = '2x';
+    st.tone = audioCtx.createBiquadFilter();
+    st.tone.type = 'lowpass';
+    st.tone.Q.value = 0.5;
+    st.wet = audioCtx.createGain();
+    input.connect(st.dry); st.dry.connect(st.out);
+    input.connect(st.shaper); st.shaper.connect(st.tone); st.tone.connect(st.wet); st.wet.connect(st.out);
+    return st;
+  }
+  function updateStage(st, on, drive, tone, mix){
+    var t = audioCtx.currentTime, m = mix / 100;
+    if (st.drive !== drive) { st.shaper.curve = driveCurve(drive, st.hard); st.drive = drive; }
+    st.tone.frequency.setTargetAtTime(tone, t, 0.01);
+    st.dry.gain.setTargetAtTime(on ? 1 - m : 1, t, 0.01);
+    st.wet.gain.setTargetAtTime(on ? m : 0, t, 0.01);
+  }
+  function updateDrive(){
+    if (!satStage) return;
+    updateStage(satStage, fxOn.sat, params.satDrive, params.satTone, params.satMix);
+    updateStage(distStage, fxOn.dist, params.distDrive, params.distTone, params.distMix);
+  }
+
+  // ---------- effects pages: Time (delay, reverb) and Drive (saturation, distortion) ----------
+  var FX_PAGES = ['Time', 'Drive'], fxPage = 0;
+  function setFxPage(page){
+    fxPage = (page % FX_PAGES.length + FX_PAGES.length) % FX_PAGES.length;
+    document.querySelectorAll('.fx-rack').forEach(function(rack){ rack.hidden = Number(rack.dataset.page) !== fxPage; });
+    document.getElementById('fx-page-name').textContent = FX_PAGES[fxPage].toUpperCase();
+  }
+  document.getElementById('fx-prev').addEventListener('click', function(){ setFxPage(fxPage - 1); });
+  document.getElementById('fx-next').addEventListener('click', function(){ setFxPage(fxPage + 1); });
+
   function setFx(id, on, fromUser){
     fxOn[id] = on;
     document.getElementById('fx-' + id + '-on').checked = on;
@@ -1315,15 +1412,17 @@
     // Switching on with Mix at zero would change nothing audible.
     if (on && fromUser && knobs.get(id + 'Mix').getValue() === 0) knobs.get(id + 'Mix').setValue(25);
     updateFxGains();
+    updateDrive();
   }
 
-  ['delay', 'reverb'].forEach(function(id){
+  ['delay', 'reverb', 'sat', 'dist'].forEach(function(id){
     document.getElementById('fx-' + id + '-on').addEventListener('change', function(e){ setFx(id, e.target.checked, true); });
   });
 
   // ---------- presets ----------
   // Factory presets are grouped by type, each with several versions; the
   // USER type holds presets saved from the panel, kept in this browser.
+  var DRIVE_KNOBS = ['satDrive', 'satTone', 'satMix', 'distDrive', 'distTone', 'distMix'];
   var PRESET_KNOBS = ['tune','sub','cutoff','resonance','attack','decay','sustain','release','volume',
                       'delayTime','delayFeedback','delayMix','reverbMix','reverbSize','reverbTone'];
   function preset(name, wave, values){
@@ -1331,6 +1430,7 @@
     PRESET_KNOBS.forEach(function(key, i){ p[key] = values[i]; });
     p.delayOn = p.delayMix > 0;
     p.reverbOn = p.reverbMix > 0;
+    p.satOn = p.distOn = false;   // factory sounds are clean
     return { name: name, params: p };
   }
   //                                      tune sub cutoff reso atk  dec  sus rel   vol  dTime dFb dMix rMix rSize rTone
@@ -1409,13 +1509,19 @@
     // User presets saved before the switches existed: on if the mix is up.
     setFx('delay', p.delayOn !== undefined ? !!p.delayOn : p.delayMix > 0, false);
     setFx('reverb', p.reverbOn !== undefined ? !!p.reverbOn : p.reverbMix > 0, false);
+    // ...and the drive stages didn't exist at all: keep them off.
+    setFx('sat', !!p.satOn, false);
+    setFx('dist', !!p.distOn, false);
   }
 
   function currentSettings(){
     var p = { wave: params.wave };
     PRESET_KNOBS.forEach(function(key){ p[key] = knobs.get(key).getValue(); });
+    DRIVE_KNOBS.forEach(function(key){ p[key] = knobs.get(key).getValue(); });
     p.delayOn = fxOn.delay;
     p.reverbOn = fxOn.reverb;
+    p.satOn = fxOn.sat;
+    p.distOn = fxOn.dist;
     p.modMode = params.modMode;
     p.bendRange = params.bendRange;
     return p;

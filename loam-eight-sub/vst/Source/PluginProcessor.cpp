@@ -10,7 +10,9 @@ namespace
                     reverbMixId = "reverbMix", reverbSizeId = "reverbSize", reverbToneId = "reverbTone",
                     delayOnId = "delayOn", reverbOnId = "reverbOn",
                     portaOnId = "portaOn", portaTimeId = "portaTime", portaLowId = "portaLow", portaHighId = "portaHigh",
-                    modModeId = "modMode", bendRangeId = "bendRange";
+                    modModeId = "modMode", bendRangeId = "bendRange",
+                    satOnId = "satOn", satDriveId = "satDrive", satToneId = "satTone", satMixId = "satMix",
+                    distOnId = "distOn", distDriveId = "distDrive", distToneId = "distTone", distMixId = "distMix";
 
     // Mod wheel at the top: vibrato depth in semitones, or filter opening in octaves.
     constexpr float maxVibratoSemis = 0.6f, maxFilterOctaves = 4.0f;
@@ -59,6 +61,7 @@ namespace
             { delayTimeId, r.delayTime }, { delayFeedbackId, r.delayFeedback }, { delayMixId, r.delayMix },
             { reverbMixId, r.reverbMix }, { reverbSizeId, r.reverbSize }, { reverbToneId, r.reverbTone },
             { delayOnId, r.delayMix > 0 ? 1.0f : 0.0f }, { reverbOnId, r.reverbMix > 0 ? 1.0f : 0.0f },
+            { satOnId, 0.0f }, { distOnId, 0.0f },   // factory sounds are clean
         } };
     }
 
@@ -88,6 +91,11 @@ namespace
             if (find (switchId) == nullptr)
                 if (const auto* mix = find (mixId))
                     values.push_back ({ switchId, *mix > 0 ? 1.0f : 0.0f });
+
+        // ...and the drive stages didn't exist at all: keep them off.
+        for (const auto* driveSwitch : { satOnId, distOnId })
+            if (find (driveSwitch) == nullptr)
+                values.push_back ({ driveSwitch, 0.0f });
     }
 
     constexpr auto presetTag = "LoamPreset";
@@ -141,6 +149,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::creat
     params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaLowId, 1), "Porta Low Key", 0, 127, 60));
     params.push_back (std::make_unique<juce::AudioParameterInt> (juce::ParameterID (portaHighId, 1), "Porta High Key", 0, 127, 76));
 
+    // Drive page: saturation and distortion.
+    Range driveToneRange (500.0f, 12000.0f);
+    driveToneRange.setSkewForCentre (2450.0f);
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (satOnId, 1), "Saturation On", false));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (satDriveId, 1), "Saturation Drive", Range (0.0f, 100.0f), 30.0f));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (satToneId, 1), "Saturation Tone", driveToneRange, 8000.0f));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (satMixId, 1), "Saturation Mix", Range (0.0f, 100.0f), 50.0f));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID (distOnId, 1), "Distortion On", false));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (distDriveId, 1), "Distortion Drive", Range (0.0f, 100.0f), 40.0f));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (distToneId, 1), "Distortion Tone", driveToneRange, 5000.0f));
+    params.push_back (std::make_unique<Param> (juce::ParameterID (distMixId, 1), "Distortion Mix", Range (0.0f, 100.0f), 50.0f));
+
     // Wheels: what the mod wheel does, and how far pitch bend reaches.
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID (modModeId, 1), "Mod Wheel", juce::StringArray { "Vibrato", "Filter", "Custom" }, 0));
@@ -183,6 +203,9 @@ void LoamEightSubProcessor::pullParameters()
     engine.reverbMixPct = reverbOn ? get (reverbMixId) : 0.0f;
     engine.reverbSizeSec = get (reverbSizeId);
     engine.reverbToneHz = get (reverbToneId);
+
+    engine.saturation = { get (satOnId) > 0.5f, get (satDriveId), get (satToneId), get (satMixId) };
+    engine.distortion = { get (distOnId) > 0.5f, get (distDriveId), get (distToneId), get (distMixId) };
 
     const auto low = (int) get (portaLowId), high = (int) get (portaHighId);
     engine.portaOn = get (portaOnId) > 0.5f;

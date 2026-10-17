@@ -179,6 +179,32 @@ int main()
         std::printf ("ok: bent A4 up 2 semitones, %.1f Hz\n", hz);
     }
 
+    // Drive stages: switching saturation or distortion on changes the sound,
+    // and the output stays finite and within range.
+    {
+        auto renderRms = [] (bool sat, bool dist)
+        {
+            SynthEngine e;
+            e.prepare (44100.0, 512);
+            e.saturation = { sat, 100.0f, 12000.0f, 100.0f };
+            e.distortion = { dist, 100.0f, 12000.0f, 100.0f };
+            e.noteOn (57, 1.0f);
+            juce::AudioBuffer<float> b (2, 512);
+            for (int block = 0; block < 10; ++block)
+                e.render (b, 0, 512);
+            const auto peak = b.getMagnitude (0, 0, 512);
+            return std::isfinite (peak) && peak < 2.0f ? rms (b, 0, 0, 512) : -1.0f;
+        };
+        const auto clean = renderRms (false, false), saturated = renderRms (true, false), distorted = renderRms (false, true);
+        if (clean <= 0.0f || saturated <= 0.0f || distorted <= 0.0f
+            || std::abs (saturated - clean) < 1.0e-3f || std::abs (distorted - clean) < 1.0e-3f)
+        {
+            std::fprintf (stderr, "FAIL: drive stages, RMS clean=%f sat=%f dist=%f\n", clean, saturated, distorted);
+            return 1;
+        }
+        std::printf ("ok: drive stages, RMS clean=%.3f sat=%.3f dist=%.3f\n", clean, saturated, distorted);
+    }
+
     std::printf ("EngineTest passed.\n");
     return 0;
 }
