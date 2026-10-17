@@ -133,6 +133,9 @@ class WheelView : public juce::Component
 public:
     WheelView (const juce::String& name, std::atomic<float>& value, bool bipolar);
 
+    // Optional big label in the middle of the wheel (the pitch wheel shows its bend range).
+    juce::String centreText;
+
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -245,12 +248,14 @@ private:
     PortaRangeStrip portaStrip;
     bool portaShown = false;
 
+    // Wheels: + / - around the pitch wheel set the bend range (shown on the
+    // wheel); the button above the mod wheel steps VIB -> FILT -> CUST.
     WheelView pitchWheel, modWheel;
-    juce::Label modLabel, bendLabel;
-    std::array<juce::TextButton, 3> modModeButtons;
-    std::unique_ptr<juce::ParameterAttachment> modModeAttachment;
-    juce::ComboBox bendRangeBox;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> bendRangeAttachment;
+    juce::TextButton bendUp { "+" }, bendDown { "-" }, modModeButton;
+    juce::Label modWheelLabel;
+    std::unique_ptr<juce::ParameterAttachment> modModeAttachment, bendRangeAttachment;
+    int modMode = 0;
+    void stepBendRange (int delta);
     bool keyboardFocused = false;
 
     Module presetsModule { "Presets",    LoamColours::sage,     {} };

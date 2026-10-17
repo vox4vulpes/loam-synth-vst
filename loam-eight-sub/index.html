@@ -427,23 +427,16 @@
     position:absolute; inset:0; display:flex; align-items:center; padding:0 6px;
     font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--ink); opacity:.7; pointer-events:none;
   }
-  .wheel-controls{display:flex; align-items:center; gap:4px; flex-wrap:wrap;}
-  .wheel-controls .porta-label{margin-right:4px;}
-  .wheel-controls .chip-btn{--accent:var(--teal); min-width:40px; padding:4px 6px;}
-  .wheel-controls .bend-label{margin-left:14px;}
-  .wheel-controls select{
-    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink);
-    background:var(--panel); border:1px solid var(--groove-dark); border-radius:6px; padding:3px 4px;
-  }
   .keys-row{display:flex; gap:8px; flex:1; min-width:0;}
   .keys-row .keyboard-scroll{min-width:0;}   /* scroll the keys rather than widen the bay */
   .wheels{display:flex; gap:6px; flex:none;}
+  .wheel-col{width:32px; display:flex; flex-direction:column; align-items:center; gap:3px;}
+  .wheel-btn{width:100%; min-width:0; padding:1px 0; font-size:10px; --accent:var(--teal);}
   .wheel{
-    width:20px; display:flex; flex-direction:column; align-items:center; gap:2px;
-    touch-action:none; cursor:ns-resize; user-select:none;
+    width:22px; flex:1; display:flex; touch-action:none; cursor:ns-resize; user-select:none;
   }
   .wheel-slot{
-    position:relative; width:100%; height:132px; border-radius:5px;
+    position:relative; width:100%; height:auto; min-height:80px; border-radius:5px;
     background:rgba(42,36,29,.35); padding:3px; box-sizing:border-box;
   }
   .wheel-face{
@@ -462,7 +455,12 @@
   }
   .wheel--mod .wheel-thumb{background:var(--teal);}
   .wheel.springing .wheel-thumb{transition:top .12s ease-out;}
-  .wheel-name{font-family:'IBM Plex Mono',monospace; font-size:8.5px; color:var(--ink);}
+  .wheel-name{font-family:'IBM Plex Mono',monospace; font-size:8.5px; color:var(--ink); line-height:18px;}
+  .wheel-num{
+    position:absolute; left:2px; right:2px; top:50%; transform:translateY(-50%);
+    background:rgba(242,236,217,.9); border-radius:3px; text-align:center;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink); pointer-events:none;
+  }
   .bay-status{margin-left:auto; display:flex; align-items:center; gap:14px; min-width:0;}
   .midi-status{
     font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink);
@@ -663,22 +661,21 @@
           <span class="sustain-ind" id="sustain-ind" title="Sustain pedal (or hold Space)">SUSTAIN<span class="led" aria-hidden="true"></span></span>
         </div>
       </div>
-      <div class="wheel-controls" role="group" aria-label="Wheels">
-        <span class="porta-label" id="mod-mode-label">MOD</span>
-        <button class="chip-btn" type="button" data-mod="vib" title="Mod wheel adds vibrato">VIB</button>
-        <button class="chip-btn" type="button" data-mod="filter" title="Mod wheel opens the filter">FILT</button>
-        <button class="chip-btn" type="button" data-mod="custom" title="Mod wheel moves the knobs you assign">CUST</button>
-        <label class="porta-label bend-label" for="bend-range">BEND</label>
-        <select id="bend-range" title="Pitch bend range in semitones"></select>
-      </div>
       <div class="keys-row">
       <div class="wheels">
-        <div class="wheel wheel--pitch" id="pitch-wheel" role="slider" aria-label="Pitch wheel" aria-valuemin="-1" aria-valuemax="1" tabindex="0">
-          <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div></div>
-          <span class="wheel-name">PITCH</span>
+        <div class="wheel-col">
+          <button class="chip-btn wheel-btn" type="button" id="bend-up" aria-label="Wider pitch bend range">+</button>
+          <div class="wheel wheel--pitch" id="pitch-wheel" role="slider" aria-label="Pitch wheel" aria-valuemin="-1" aria-valuemax="1" tabindex="0">
+            <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div>
+              <span class="wheel-num" id="bend-range" title="Pitch bend range, semitones"></span></div>
+          </div>
+          <button class="chip-btn wheel-btn" type="button" id="bend-down" aria-label="Narrower pitch bend range">&minus;</button>
         </div>
-        <div class="wheel wheel--mod" id="mod-wheel" role="slider" aria-label="Mod wheel" aria-valuemin="0" aria-valuemax="1" tabindex="0">
-          <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div></div>
+        <div class="wheel-col">
+          <button class="chip-btn wheel-btn is-active" type="button" id="mod-mode" title="Mod wheel mode: vibrato, filter or custom"></button>
+          <div class="wheel wheel--mod" id="mod-wheel" role="slider" aria-label="Mod wheel" aria-valuemin="0" aria-valuemax="1" tabindex="0">
+            <div class="wheel-slot"><div class="wheel-face"><div class="wheel-thumb"></div></div></div>
+          </div>
           <span class="wheel-name">MOD</span>
         </div>
       </div>
@@ -1327,23 +1324,27 @@
   setBendWheel(0);
   setModWheel(0);
 
-  var modModeButtons = document.querySelectorAll('[data-mod]');
+  var MOD_MODES = ['vib', 'filter', 'custom'], MOD_MODE_NAMES = { vib: 'VIB', filter: 'FILT', custom: 'CUST' };
+  var modModeButton = document.getElementById('mod-mode');
   function setModMode(mode){
     params.modMode = mode;
-    modModeButtons.forEach(function(b){
-      var on = b.dataset.mod === mode;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
+    modModeButton.textContent = MOD_MODE_NAMES[mode];
+    modModeButton.setAttribute('aria-label', 'Mod wheel mode: ' + MOD_MODE_NAMES[mode] + ' (click for next)');
     applyMod();
   }
-  modModeButtons.forEach(function(b){ b.addEventListener('click', function(){ setModMode(b.dataset.mod); }); });
+  // Steps VIB -> FILT -> CUST -> VIB.
+  modModeButton.addEventListener('click', function(){
+    setModMode(MOD_MODES[(MOD_MODES.indexOf(params.modMode) + 1) % MOD_MODES.length]);
+  });
   setModMode(params.modMode);
 
-  var bendRangeEl = document.getElementById('bend-range');
-  for (var semis = 1; semis <= 12; semis++) bendRangeEl.add(new Option('\u00b1' + semis, String(semis)));
-  function setBendRange(semis){ params.bendRange = semis; bendRangeEl.value = String(semis); applyBend(); }
-  bendRangeEl.addEventListener('change', function(){ setBendRange(Number(bendRangeEl.value)); });
+  function setBendRange(semis){
+    params.bendRange = Math.max(1, Math.min(12, semis));
+    document.getElementById('bend-range').textContent = params.bendRange;
+    applyBend();
+  }
+  document.getElementById('bend-up').addEventListener('click', function(){ setBendRange(params.bendRange + 1); });
+  document.getElementById('bend-down').addEventListener('click', function(){ setBendRange(params.bendRange - 1); });
   setBendRange(params.bendRange);
 
   // ---------- effect on/off switches ----------

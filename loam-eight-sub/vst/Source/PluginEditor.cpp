@@ -6,7 +6,7 @@ namespace
 {
     // Layout mirrors the web panel: header, scope, presets, then the synth
     // modules on the left with effects as a tall column on the right.
-    constexpr int editorWidth = 900, editorHeight = 768;
+    constexpr int editorWidth = 900, editorHeight = 728;
     constexpr int pad = 20, gap = 12, headerHeight = 56, scopeHeight = 132, presetsHeight = 92;
     constexpr int rowHeight = 180, fxWidth = 214, titleHeight = 26;
     constexpr int knobWidth = 60, knobHeight = 98, fxKnobHeight = 96;
@@ -432,7 +432,7 @@ WheelView::WheelView (const juce::String& wheelName, std::atomic<float>& wheelVa
 
 juce::Rectangle<float> WheelView::slot() const
 {
-    return getLocalBounds().toFloat().withTrimmedBottom (14.0f);
+    return getLocalBounds().toFloat();
 }
 
 void WheelView::setFromY (float y)
@@ -489,9 +489,15 @@ void WheelView::paint (juce::Graphics& g)
     g.setColour (bipolar ? coral : teal);
     g.fillRoundedRectangle ({ face.getX(), y - 2.0f, face.getWidth(), 4.0f }, 2.0f);
 
-    g.setColour (ink);
-    g.setFont (monoFont (8.5f));
-    g.drawText (name, getLocalBounds().removeFromBottom (12), juce::Justification::centred, false);
+    if (centreText.isNotEmpty())
+    {
+        const auto badge = juce::Rectangle<float> (face.getWidth() - 2.0f, 16.0f).withCentre (face.getCentre());
+        g.setColour (panelRaised.withAlpha (0.9f));
+        g.fillRoundedRectangle (badge, 3.0f);
+        g.setColour (ink);
+        g.setFont (monoFont (11.0f));
+        g.drawText (centreText, badge, juce::Justification::centred, false);
+    }
 }
 
 //==============================================================================
@@ -768,42 +774,48 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
     addAndMakeVisible (glideReadout);
     addChildComponent (portaStrip);
 
-    // ---- wheels, mod wheel mode and bend range
+    // ---- wheels: bend range on + / - around the pitch wheel, mod mode above the mod wheel
     addAndMakeVisible (pitchWheel);
     addAndMakeVisible (modWheel);
-    for (auto [l, text] : { std::pair { &modLabel, "MOD" }, std::pair { &bendLabel, "BEND" } })
-    {
-        l->setText (text, juce::dontSendNotification);
-        l->setFont (monoFont (10.0f).withExtraKerningFactor (0.12f));
-        l->setColour (juce::Label::textColourId, ink);
-        l->setBorderSize ({});
-        addAndMakeVisible (*l);
-    }
-    const char* modNames[] = { "VIB", "FILT", "CUST" };
-    for (int i = 0; i < (int) modModeButtons.size(); ++i)
-    {
-        auto& b = modModeButtons[(size_t) i];
-        b.setButtonText (modNames[i]);
-        b.setColour (juce::TextButton::buttonOnColourId, teal);
-        b.setWantsKeyboardFocus (false);
-        b.onClick = [this, i] { modModeAttachment->setValueAsCompleteGesture ((float) i); };
-        addAndMakeVisible (b);
-    }
+
+    bendRangeAttachment = std::make_unique<juce::ParameterAttachment> (
+        *p.apvts.getParameter ("bendRange"),
+        [this] (float index)
+        {
+            pitchWheel.centreText = juce::String (juce::roundToInt (index) + 1);   // choice index 0 = 1 semitone
+            pitchWheel.repaint();
+        });
+    bendRangeAttachment->sendInitialUpdate();
+    bendUp.setTitle ("Wider pitch bend range");
+    bendDown.setTitle ("Narrower pitch bend range");
+    bendUp.onClick = [this] { stepBendRange (1); };
+    bendDown.onClick = [this] { stepBendRange (-1); };
+
     modModeAttachment = std::make_unique<juce::ParameterAttachment> (
         *p.apvts.getParameter ("modMode"),
         [this] (float v)
         {
-            for (int i = 0; i < (int) modModeButtons.size(); ++i)
-                modModeButtons[(size_t) i].setToggleState (i == juce::roundToInt (v), juce::dontSendNotification);
+            const char* names[] = { "VIB", "FILT", "CUST" };
+            modMode = juce::jlimit (0, 2, juce::roundToInt (v));
+            modModeButton.setButtonText (names[modMode]);
         });
     modModeAttachment->sendInitialUpdate();
+    modModeButton.setTitle ("Mod wheel mode: vibrato, filter or custom");
+    modModeButton.setColour (juce::TextButton::buttonOnColourId, teal);
+    modModeButton.setToggleState (true, juce::dontSendNotification);   // always shown lit, in the wheel's colour
+    modModeButton.onClick = [this] { modModeAttachment->setValueAsCompleteGesture ((float) ((modMode + 1) % 3)); };
 
-    for (int semis = 1; semis <= 12; ++semis)
-        bendRangeBox.addItem (utf8 ("\xc2\xb1") + juce::String (semis), semis);
-    bendRangeBox.setWantsKeyboardFocus (false);
-    bendRangeBox.setTitle ("Pitch bend range in semitones");
-    bendRangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, "bendRange", bendRangeBox);
-    addAndMakeVisible (bendRangeBox);
+    modWheelLabel.setText ("MOD", juce::dontSendNotification);
+    modWheelLabel.setFont (monoFont (8.5f));
+    modWheelLabel.setColour (juce::Label::textColourId, ink);
+    modWheelLabel.setJustificationType (juce::Justification::centred);
+    modWheelLabel.setBorderSize ({});
+
+    for (auto* c : std::initializer_list<juce::Component*> { &bendUp, &bendDown, &modModeButton, &modWheelLabel })
+    {
+        c->setWantsKeyboardFocus (false);
+        addAndMakeVisible (*c);
+    }
 
     // Buttons shouldn't steal focus from the keyboard, or computer keys stop playing.
     for (auto& b : presetTypeButtons) b.setWantsKeyboardFocus (false);
@@ -971,6 +983,13 @@ void LoamEightSubEditor::setFxPage (int page)
     satUnit.setVisible (fxPage == 1);
     distUnit.setVisible (fxPage == 1);
     fxPageName.setText (fxPage == 0 ? "TIME" : "DRIVE", juce::dontSendNotification);
+}
+
+void LoamEightSubEditor::stepBendRange (int delta)
+{
+    auto* param = audioProcessor.apvts.getParameter ("bendRange");
+    const auto index = juce::roundToInt (param->convertFrom0to1 (param->getValue()));
+    bendRangeAttachment->setValueAsCompleteGesture ((float) juce::jlimit (0, 11, index + delta));
 }
 
 void LoamEightSubEditor::setOctave (int shift)
@@ -1217,24 +1236,18 @@ void LoamEightSubEditor::resized()
     glideLabel.setBounds (octaveRow.removeFromLeft (38));
     glideSlider.setBounds (octaveRow.removeFromLeft (80).reduced (4, 0));
     glideReadout.setBounds (octaveRow.removeFromLeft (50));
-
-    kb.removeFromTop (4);
-    auto wheelRow = kb.removeFromTop (24);
-    modLabel.setBounds (wheelRow.removeFromLeft (34));
-    for (auto& b : modModeButtons)
-    {
-        b.setBounds (wheelRow.removeFromLeft (42));
-        wheelRow.removeFromLeft (3);
-    }
-    wheelRow.removeFromLeft (16);
-    bendLabel.setBounds (wheelRow.removeFromLeft (40));
-    bendRangeBox.setBounds (wheelRow.removeFromLeft (64));
     kb.removeFromTop (6);
 
-    // Pitch and mod wheels to the left of the keys, like on a hardware keyboard.
-    auto wheels = kb.removeFromLeft (46);
-    pitchWheel.setBounds (wheels.removeFromLeft (20));
-    modWheel.setBounds (wheels.removeFromRight (20));
+    // Pitch and mod wheels to the left of the keys, like on a hardware keyboard:
+    // + / wheel / - for pitch, mode button / wheel / MOD for the mod wheel.
+    auto wheels = kb.removeFromLeft (70);
+    auto pitchColumn = wheels.removeFromLeft (32), modColumn = wheels.removeFromRight (32);
+    bendUp.setBounds (pitchColumn.removeFromTop (18));
+    bendDown.setBounds (pitchColumn.removeFromBottom (18));
+    pitchWheel.setBounds (pitchColumn.reduced (5, 3));
+    modModeButton.setBounds (modColumn.removeFromTop (18));
+    modWheelLabel.setBounds (modColumn.removeFromBottom (18));
+    modWheel.setBounds (modColumn.reduced (5, 3));
     kb.removeFromLeft (8);
 
     portaShown = portaToggle.getToggleState();
