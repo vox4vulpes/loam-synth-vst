@@ -69,7 +69,11 @@ jobs:
             if [ -d "$artefacts/Standalone" ]; then cp -R "$artefacts/Standalone" "stage/$synth/"; fi
             cp "$src/LICENSE" "stage/$synth/LICENSE.txt"
 
-            (cd stage && cmake -E tar cf "../dist/$synth-$version-$platform.zip" --format=zip "$synth")
+            # loam-eight-sub -> Loam-Synth-Eight-Sub, so every file shares the
+            # Loam-Synth- prefix and GitHub's alphabetical asset list puts the
+            # Loam-Synth-Bundle downloads first.
+            pretty="Loam-Synth-$(echo "${synth#loam-}" | perl -pe 's/(^|-)(\w)/$1\u$2/g')"
+            (cd stage && cmake -E tar cf "../dist/$pretty-$version-$platform.zip" --format=zip "$synth")
             echo "::endgroup::"
           done
 
@@ -117,7 +121,7 @@ jobs:
 
           - **`Loam-Synth-Bundle-Setup-<version>.exe`** — Windows installer for every synth (recommended on Windows)
           - **`Loam-Synth-Bundle-<version>-<platform>.zip`** — every Loam synth in one archive
-          - **`<synth>-<version>-<platform>.zip`** — a single synth
+          - **`Loam-Synth-<Synth>-<version>-<platform>.zip`** — a single synth
 
           Each archive holds the VST3 plugin and a standalone app for each synth.
 
