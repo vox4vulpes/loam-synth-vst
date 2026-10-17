@@ -11,6 +11,11 @@ self-contained HTML file you can just open in a browser, and a VST3 plugin
   [Play it in your browser](https://vox4vulpes.github.io/loam-synth-vst/loam-eight-sub/) ·
   [VST3 plugin](loam-eight-sub/#vst3-plugin)
 
+- [**Loam DaBoom**](loam-daboom/) — 小鷺 · Rhythm Composer: an eight-voice
+  808/909-style drum machine with a 16-step sequencer, all synthesised.
+  [Play it in your browser](https://vox4vulpes.github.io/loam-synth-vst/loam-daboom/) ·
+  VST3 coming next
+
 More to come.
 
 ## Download

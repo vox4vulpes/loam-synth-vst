@@ -5,6 +5,13 @@ release workflow refuses to publish a version that has no section here.
 
 ## [1.4.1]
 
+### Added
+- **Loam DaBoom** (web): 小鷺 · Rhythm Composer, an eight-voice drum machine
+  in the spirit of the 808/909 — kick, snare, clap, closed and open hats, tom,
+  rim and cowbell, all synthesised — with a 16-step sequencer (accents, swing,
+  patterns A–D), pads, computer-keyboard and MIDI play, 808 / 909 / Lo-Fi
+  kits and a master section. The VST3 version follows.
+
 ### Fixed
 - VST: the sliding DELAY plate no longer covers the left end of the Delay
   on/off switch.
