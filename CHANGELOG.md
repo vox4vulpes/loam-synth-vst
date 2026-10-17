@@ -20,6 +20,10 @@ release workflow refuses to publish a version that has no section here.
   green (wheel up). One wheel can drive any number of knobs. Assignments are
   saved with the project (VST) and with user presets.
 - Every C on the on-screen keyboard shows its octave (C3, C4, C5...).
+- **Web: the keyboard always fits** — no more sideways scrolling. Click
+  **OCTAVE** to switch to the full range, C1–C8, at real key widths in a
+  scrolling strip; the keys the computer keyboard plays are lettered and
+  tinted, and the octave buttons move them. Click OCTAVE again to go back.
 - **Effects pages**, flipped with the ‹ › arrows in the Effects title:
   **TIME** (Delay, Reverb) and the new **DRIVE** page with **Saturation**
   (soft, warm) and **Distortion** (hard, asymmetric clip), each with Drive,
