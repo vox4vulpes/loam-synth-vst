@@ -1,21 +1,35 @@
-; Windows installer for the whole Loam Synth Bundle.
+; Windows installer, built once for the whole bundle and once per synth.
 ;
 ; Built by installer/windows/build-installer.sh, which passes:
 ;   AppVersion  e.g. 1.2.0 (from the release tag)
-;   StageDir    folder with VST3\<synth>.vst3 and Standalone\<synth>.exe
+;   AppName     "Loam Synth Bundle" or a synth's name, e.g. "Loam Eight Sub"
+;   AppKey      fixed per product: LoamSynthBundle, LoamEightSub, ...
+;   OutputName  installer file name without .exe
+;   StageDir    folder with VST3\<synth>.vst3, Standalone\<synth>.exe, Licenses\
 ;   IconsFile   generated [Icons] lines, one Start-menu entry per standalone app
 ;
-; Updating: the AppId stays fixed, so a newer installer upgrades the existing
-; install in place. InitializeSetup refuses to downgrade and asks before
-; reinstalling the same version. The bundle's VST3 folder is wiped first so
-; synths dropped from the bundle don't linger in the DAW.
+; Every installer writes into the same shared folders (Common Files\VST3\Loam
+; and Program Files\Loam) with Inno's shared-file reference counting, so the
+; bundle and a single-synth installer can both be installed without the DAW
+; seeing a plugin twice, and uninstalling one leaves the other's files alone.
+;
+; Updating: AppId stays fixed per product, so a newer installer upgrades in
+; place. InitializeSetup refuses to downgrade and asks before reinstalling the
+; same version.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
-#define AppName "Loam Synth Bundle"
-#define AppKey "LoamSynthBundle"
-#define Vst3Dir "{commoncf64}\VST3\" + AppName
+#ifndef AppName
+  #define AppName "Loam Synth Bundle"
+#endif
+#ifndef AppKey
+  #define AppKey "LoamSynthBundle"
+#endif
+#ifndef OutputName
+  #define OutputName "1Bundle-Loam-Synth-Setup-" + AppVersion
+#endif
+#define Vst3Dir "{commoncf64}\VST3\Loam"
 
 [Setup]
 AppId={#AppKey}
@@ -26,14 +40,15 @@ AppPublisher=Loam
 AppPublisherURL=https://github.com/vox4vulpes/loam-synth-vst
 AppSupportURL=https://github.com/vox4vulpes/loam-synth-vst/issues
 AppUpdatesURL=https://github.com/vox4vulpes/loam-synth-vst/releases
-DefaultDirName={autopf}\{#AppName}
-DefaultGroupName={#AppName}
+DefaultDirName={autopf}\Loam
+UsePreviousAppDir=no
+DisableDirPage=yes
+DefaultGroupName=Loam
 DisableProgramGroupPage=yes
-DisableDirPage=auto
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=1Bundle-Loam-Synth-Setup-{#AppVersion}
+OutputBaseFilename={#OutputName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -41,14 +56,15 @@ CloseApplications=yes
 UninstallDisplayName={#AppName}
 
 [InstallDelete]
-Type: filesandordirs; Name: "{#Vst3Dir}"
-Type: files; Name: "{app}\*.exe"
-Type: filesandordirs; Name: "{app}\Licenses"
+; v1.1-v1.2 bundle installs used per-bundle folders; move them to the shared ones.
+Type: filesandordirs; Name: "{commoncf64}\VST3\Loam Synth Bundle"
+Type: filesandordirs; Name: "{autopf}\Loam Synth Bundle"
+Type: filesandordirs; Name: "{autoprograms}\Loam Synth Bundle"
 
 [Files]
-Source: "{#StageDir}\VST3\*"; DestDir: "{#Vst3Dir}"; Excludes: "*.lib,*.exp"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StageDir}\Standalone\*"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StageDir}\Licenses\*"; DestDir: "{app}\Licenses"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#StageDir}\VST3\*"; DestDir: "{#Vst3Dir}"; Excludes: "*.lib,*.exp"; Flags: ignoreversion recursesubdirs createallsubdirs sharedfile uninsnosharedfileprompt
+Source: "{#StageDir}\Standalone\*"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist sharedfile uninsnosharedfileprompt
+Source: "{#StageDir}\Licenses\*"; DestDir: "{app}\Licenses"; Flags: ignoreversion skipifsourcedoesntexist sharedfile uninsnosharedfileprompt
 
 [Icons]
 #ifdef IconsFile
@@ -56,11 +72,8 @@ Source: "{#StageDir}\Licenses\*"; DestDir: "{app}\Licenses"; Flags: ignoreversio
 #endif
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{#Vst3Dir}"
-
 [Messages]
-FinishedLabel=Setup has installed [name] on your computer.%n%nThe plugins are in Common Files\VST3\{#AppName} - rescan plugins in your DAW to pick them up.
+FinishedLabel=Setup has installed [name] on your computer.%n%nThe plugins are in Common Files\VST3\Loam - rescan plugins in your DAW to pick them up.
 
 [Code]
 // Pops the next dot-separated number off S ("1.2.3" -> 1, S becomes "2.3").
