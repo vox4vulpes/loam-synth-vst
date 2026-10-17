@@ -15,6 +15,8 @@
     --teal:#336f6b;
     --coral:#b85540;
     --lavender:#8a78a3;
+    --mod-red:#d33b2c;
+    --mod-green:#3a9a4a;
     --sage:#5f7344;
     --readout-bg:#171308;
     --readout-ink:#f0a830;
@@ -349,6 +351,27 @@
     user-select:none;
   }
   .knob:focus-visible{ outline:2px solid var(--focus); outline-offset:3px; border-radius:10px; }
+  /* CUST mod wheel: a button per knob assigns it; red/green dots on the ring
+     set where the wheel takes it, from red (wheel down) to green (wheel up). */
+  .knob{position:relative;}
+  .knob-dial{position:relative;}
+  .mod-btn{
+    display:none; position:absolute; top:-3px; right:-7px; z-index:3;
+    width:13px; height:13px; padding:0; border-radius:50%;
+    border:1.5px solid var(--groove-dark); background:var(--panel); cursor:pointer;
+  }
+  .mod-btn[data-state="fwd"]{background:var(--mod-green); border-color:var(--mod-green);}
+  .mod-btn[data-state="rev"]{background:var(--mod-red); border-color:var(--mod-red);}
+  body.mod-custom .mod-btn{display:block;}
+  .mod-dot{
+    display:none; position:absolute; z-index:2; width:10px; height:10px; margin:-5px 0 0 -5px;
+    border-radius:50%; border:1.5px solid var(--panel-raised); box-shadow:0 1px 2px var(--shadow);
+    cursor:grab; touch-action:none;
+  }
+  .mod-dot--red{background:var(--mod-red);}
+  .mod-dot--green{background:var(--mod-green);}
+  body.mod-custom .knob.is-bound .mod-dot{display:block;}
+  .knob.is-modded .knob-cap{cursor:default;}
   .knob-dial{
     width:56px; height:56px; border-radius:50%;
     background:conic-gradient(from 135deg, var(--groove-dark) 0deg 270deg, transparent 270deg 360deg);
@@ -1128,7 +1151,9 @@
     el.setAttribute('aria-valuemin', def.min);
     el.setAttribute('aria-valuemax', def.max);
     el.innerHTML =
-      '<div class="knob-dial"><div class="knob-cap"><div class="knob-pointer"></div></div></div>' +
+      '<button class="mod-btn" type="button" data-state="off"></button>' +
+      '<div class="knob-dial"><div class="knob-cap"><div class="knob-pointer"></div></div>' +
+      '<span class="mod-dot mod-dot--red"></span><span class="mod-dot mod-dot--green"></span></div>' +
       '<div class="knob-label">' + def.label + '</div>' +
       '<div class="knob-readout"></div>';
 
@@ -1148,14 +1173,75 @@
         ? Math.exp(Math.log(def.min) + t * (Math.log(def.max) - Math.log(def.min)))
         : def.min + t * range;
     }
+    // CUST mod wheel binding: positions (0..1 along the dial) for wheel down
+    // (red) and wheel up (green). While it drives the knob, displayT is the
+    // position shown and heard; the knob's own value is kept underneath.
+    var bind = null, displayT = null;
+    var modBtn = el.querySelector('.mod-btn');
+    var dial = el.querySelector('.knob-dial');
+    var dots = { red: el.querySelector('.mod-dot--red'), green: el.querySelector('.mod-dot--green') };
+
     function render(){
-      var t = valueToT(value);
+      var shown = displayT !== null ? tToValue(displayT) : value;
+      var t = valueToT(shown);
       el.style.setProperty('--angle', (-135 + t * 270) + 'deg');
-      readout.textContent = formatValue(def, value);
-      el.setAttribute('aria-valuenow', Math.round(value));
-      el.setAttribute('aria-valuetext', formatValue(def, value));
-      if (def.onInput) def.onInput(value);
+      readout.textContent = formatValue(def, shown);
+      el.setAttribute('aria-valuenow', Math.round(shown));
+      el.setAttribute('aria-valuetext', formatValue(def, shown));
+      if (def.onInput) def.onInput(shown);
     }
+
+    function placeDot(dot, t){
+      var a = (-135 + t * 270) * Math.PI / 180, r = 27;
+      dot.style.left = (28 + r * Math.sin(a)) + 'px';
+      dot.style.top = (28 - r * Math.cos(a)) + 'px';
+    }
+    function renderBinding(){
+      el.classList.toggle('is-bound', !!bind);
+      modBtn.dataset.state = !bind ? 'off' : (bind.reversed ? 'rev' : 'fwd');
+      modBtn.setAttribute('aria-label', def.label + ' on the mod wheel: ' + (!bind ? 'off' : bind.reversed ? 'reversed' : 'on'));
+      if (bind) { placeDot(dots.red, bind.red); placeDot(dots.green, bind.green); }
+    }
+    function setMod(custom, wheel){
+      var modded = custom && !!bind;
+      el.classList.toggle('is-modded', modded);
+      displayT = modded ? bind.red + (bind.green - bind.red) * wheel : null;
+      render();
+    }
+
+    // Button cycles off -> on (red at the current position, green at the far end)
+    // -> reversed (dots swapped) -> off.
+    modBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (!bind) {
+        var t0 = valueToT(value);
+        bind = { red: t0, green: t0 < 0.95 ? 1 : 0, reversed: false };
+      } else if (!bind.reversed) {
+        bind = { red: bind.green, green: bind.red, reversed: true };
+      } else {
+        bind = null;
+      }
+      renderBinding();
+      refreshCustomMod();
+    });
+
+    ['red', 'green'].forEach(function(which){
+      var dot = dots[which], draggingDot = false;
+      dot.addEventListener('pointerdown', function(e){
+        e.stopPropagation(); draggingDot = true; dot.setPointerCapture(e.pointerId);
+      });
+      dot.addEventListener('pointermove', function(e){
+        if (!draggingDot || !bind) return;
+        var r = dial.getBoundingClientRect();
+        var deg = Math.atan2(e.clientX - (r.left + r.width / 2), (r.top + r.height / 2) - e.clientY) * 180 / Math.PI;
+        if (deg > 135) deg = deg > 157.5 ? -135 : 135;            // the gap at the bottom: snap to the nearer end
+        else if (deg < -135) deg = deg < -157.5 ? 135 : -135;
+        bind[which] = Math.max(0, Math.min(1, (deg + 135) / 270));
+        renderBinding();
+        refreshCustomMod();
+      });
+      ['pointerup', 'pointercancel'].forEach(function(type){ dot.addEventListener(type, function(){ draggingDot = false; }); });
+    });
     function setValue(v){
       value = Math.min(def.max, Math.max(def.min, v));
       render();
@@ -1163,6 +1249,7 @@
 
     var dragging = false, startY = 0, startT = 0;
     cap.addEventListener('pointerdown', function(e){
+      if (el.classList.contains('is-modded')) return;   // the mod wheel is driving it
       dragging = true; startY = e.clientY; startT = valueToT(value);
       cap.setPointerCapture(e.pointerId);
     });
@@ -1186,7 +1273,13 @@
     });
 
     render();
-    knobs.set(def.id, { setValue: setValue, getValue: function(){ return value; } });
+    knobs.set(def.id, {
+      setValue: setValue,
+      getValue: function(){ return value; },
+      getBinding: function(){ return bind ? { red: bind.red, green: bind.green, reversed: bind.reversed } : null; },
+      setBinding: function(b){ bind = b ? { red: b.red, green: b.green, reversed: !!b.reversed } : null; renderBinding(); },
+      setMod: setMod
+    });
     return el;
   }
 
@@ -1279,7 +1372,14 @@
   function applyMod(){
     if (vibratoGain) vibratoGain.gain.setTargetAtTime(vibratoCents(), audioCtx.currentTime, 0.01);
     applyCutoff();
-    if (window.onModWheelChange) window.onModWheelChange();
+    refreshCustomMod();
+  }
+
+  // CUST: assigned knobs follow the mod wheel between their red and green dots.
+  function refreshCustomMod(){
+    var custom = params.modMode === 'custom';
+    document.body.classList.toggle('mod-custom', custom);
+    knobs.forEach(function(k){ k.setMod(custom, modWheelValue); });
   }
 
   var pitchWheelEl = document.getElementById('pitch-wheel');
@@ -1505,7 +1605,9 @@
         knobs.get(key).setValue(p[key]);
       }
     });
+    if (p.modMap) knobs.forEach(function(k, id){ k.setBinding(p.modMap[id] || null); });
     if (p.modMode) setModMode(p.modMode);
+    else refreshCustomMod();
     if (p.bendRange) setBendRange(p.bendRange);
     // User presets saved before the switches existed: on if the mix is up.
     setFx('delay', p.delayOn !== undefined ? !!p.delayOn : p.delayMix > 0, false);
@@ -1525,6 +1627,8 @@
     p.distOn = fxOn.dist;
     p.modMode = params.modMode;
     p.bendRange = params.bendRange;
+    p.modMap = {};
+    knobs.forEach(function(k, id){ var b = k.getBinding(); if (b) p.modMap[id] = b; });
     return p;
   }
 

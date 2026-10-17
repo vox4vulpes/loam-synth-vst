@@ -72,6 +72,26 @@ public:
     //==============================================================================
     // Oscilloscope tap: the audio thread writes the mono output into a ring,
     // the editor copies the most recent samples out on its timer.
+    //==============================================================================
+    // CUST mod wheel: any knob can follow the wheel from a "red" position (wheel
+    // down) to a "green" one (wheel up), both normalised 0..1 along the knob.
+    // Kept in atomics for the audio thread and mirrored into the state tree
+    // (so projects and presets save them).
+    struct ModBinding
+    {
+        bool bound = false;
+        bool reversed = false;   // the assign button's third state; red/green already swapped
+        float red = 0.0f, green = 1.0f;
+    };
+
+    static const juce::StringArray& getModTargetIds();
+    ModBinding getModBinding (const juce::String& paramId) const;
+    void setModBinding (const juce::String& paramId, ModBinding);
+    // The value a knob is currently heard at: its own, or the wheel's position
+    // between its dots when CUST drives it. Normalised 0..1.
+    float getEffectiveNormalised (const juce::String& paramId) const;
+    bool isCustomModActive() const;
+
     static constexpr int scopeSize = 4096;
     void copyScope (float* dest, int numSamples) const;
 
@@ -82,6 +102,15 @@ private:
 
     SynthEngine engine;
     bool midiSustain = false;   // CC 64 from the host / MIDI input
+
+    struct ModSlot
+    {
+        std::atomic<bool> bound { false }, reversed { false };
+        std::atomic<float> red { 0.0f }, green { 1.0f };
+    };
+    std::array<ModSlot, 21> modSlots;
+    void loadModMapFromState();
+    void applyCustomMod();
 
     std::array<std::atomic<float>, scopeSize> scopeRing {};
     std::atomic<int> scopeWritePos { 0 };

@@ -22,6 +22,8 @@ namespace LoamColours
     inline const juce::Colour readoutBg   { 0xff171308 };
     inline const juce::Colour readoutInk  { 0xfff0a830 };
     inline const juce::Colour shadow      { 0x591e190f };
+    inline const juce::Colour modRed      { 0xffd33b2c };
+    inline const juce::Colour modGreen    { 0xff3a9a4a };
 }
 
 class LoamLookAndFeel : public juce::LookAndFeel_V4
@@ -40,6 +42,8 @@ public:
 };
 
 // One knob cell as in the web panel: label above, dial, value readout below.
+// In the CUST mod-wheel mode it also gets an assign button and, when assigned,
+// red/green dots on its ring that set where the wheel takes it.
 class LoamKnob : public juce::Component
 {
 public:
@@ -47,9 +51,38 @@ public:
               const juce::String& labelText, juce::Colour accent, juce::String unit, int decimals = 0);
 
     void resized() override;
+    void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+    void attachMod (LoamEightSubProcessor&);
+    void refreshMod();   // called on the editor's timer
 
 private:
+    // Small round button: off -> on (green) -> reversed (red) -> off.
+    struct ModButton : public juce::Component
+    {
+        std::function<void()> onClick;
+        int state = 0;   // 0 off, 1 on, 2 reversed
+        void paint (juce::Graphics&) override;
+        void mouseUp (const juce::MouseEvent& e) override { if (contains (e.getPosition()) && onClick) onClick(); }
+    };
+
     void updateReadout();
+    void setReadout (float value);
+    void cycleBinding();
+    juce::Point<float> dotPosition (float normalised) const;
+    juce::Rectangle<int> dialBounds() const;
+
+    LoamEightSubProcessor* processor = nullptr;
+    juce::RangedAudioParameter* param = nullptr;
+    juce::String paramId;
+    ModButton modButton;
+    bool customShown = false, modded = false;
+    float shownNormalised = 0.0f;
+    int draggingDot = 0;   // 0 none, 1 red, 2 green
 
     juce::Slider slider;
     juce::Label label, readout;
@@ -85,6 +118,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void refreshDimming();
+    const std::array<std::unique_ptr<LoamKnob>, 3>& getKnobs() const { return knobs; }
 
 private:
     juce::AudioProcessorValueTreeState& apvts;
@@ -226,6 +260,7 @@ private:
     std::unique_ptr<juce::ParameterAttachment> waveAttachment;
 
     LoamKnob tune, sub, cutoff, resonance, attack, decay, sustain, release, volume;
+    std::vector<LoamKnob*> allKnobs();
     FxUnit delayUnit, reverbUnit, satUnit, distUnit;
 
     // Effects pages, flipped with the arrows in the module's title row.

@@ -158,17 +158,20 @@ juce::Font LoamLookAndFeel::getComboBoxFont (juce::ComboBox&)
 }
 
 //==============================================================================
-LoamKnob::LoamKnob (juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId,
+LoamKnob::LoamKnob (juce::AudioProcessorValueTreeState& apvts, const juce::String& id,
                     const juce::String& labelText, juce::Colour accent, juce::String unitText, int numDecimals)
-    : attachment (apvts, paramId, slider), unit (std::move (unitText)), decimals (numDecimals)
+    : param (apvts.getParameter (id)), paramId (id),
+      attachment (apvts, id, slider), unit (std::move (unitText)), decimals (numDecimals)
 {
+    addChildComponent (modButton);
+    modButton.onClick = [this] { cycleBinding(); };
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
     slider.setColour (juce::Slider::rotarySliderFillColourId, accent);
     slider.setWantsKeyboardFocus (false);
 
-    if (auto* param = apvts.getParameter (paramId))
+    if (param != nullptr)
         slider.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
 
     slider.onValueChange = [this] { updateReadout(); };
@@ -191,7 +194,12 @@ LoamKnob::LoamKnob (juce::AudioProcessorValueTreeState& apvts, const juce::Strin
 
 void LoamKnob::updateReadout()
 {
-    const auto v = (float) slider.getValue();
+    if (! modded)
+        setReadout ((float) slider.getValue());
+}
+
+void LoamKnob::setReadout (float v)
+{
     juce::String text;
 
     if (unit == "Hz" && v >= 1000.0f)
@@ -204,12 +212,151 @@ void LoamKnob::updateReadout()
     readout.setText (text, juce::dontSendNotification);
 }
 
+juce::Rectangle<int> LoamKnob::dialBounds() const
+{
+    return getLocalBounds().withTrimmedTop (14).withTrimmedBottom (16).reduced (1);
+}
+
 void LoamKnob::resized()
 {
     auto area = getLocalBounds();
     label.setBounds (area.removeFromTop (14));
     readout.setBounds (area.removeFromBottom (16));
     slider.setBounds (area.reduced (1));
+    modButton.setBounds (getLocalBounds().removeFromTop (16).removeFromRight (14).withTrimmedTop (2));
+}
+
+//------------------------------------------------------------------------------
+void LoamKnob::ModButton::paint (juce::Graphics& g)
+{
+    const auto r = getLocalBounds().toFloat().reduced (1.5f);
+    const auto fill = state == 1 ? modGreen : state == 2 ? modRed : panel;
+    g.setColour (fill);
+    g.fillEllipse (r);
+    g.setColour (state == 0 ? grooveDark : fill);
+    g.drawEllipse (r, 1.5f);
+}
+
+void LoamKnob::attachMod (LoamEightSubProcessor& p)
+{
+    processor = &p;
+    refreshMod();
+}
+
+void LoamKnob::cycleBinding()
+{
+    auto b = processor->getModBinding (paramId);
+    if (! b.bound)
+    {
+        // Red at where the knob is now, green at the far end.
+        const auto now = param->getValue();
+        b = { true, false, now, now < 0.95f ? 1.0f : 0.0f };
+    }
+    else if (! b.reversed)
+    {
+        b = { true, true, b.green, b.red };
+    }
+    else
+    {
+        b = {};
+    }
+    processor->setModBinding (paramId, b);
+    refreshMod();
+}
+
+void LoamKnob::refreshMod()
+{
+    if (processor == nullptr)
+        return;
+
+    const auto custom = processor->isCustomModActive();
+    const auto b = processor->getModBinding (paramId);
+    const auto nowModded = custom && b.bound;
+
+    modButton.setVisible (custom);
+    modButton.state = ! b.bound ? 0 : (b.reversed ? 2 : 1);
+    modButton.repaint();
+
+    // While the wheel drives the knob, the dial shows (and the readout says)
+    // the position it's heard at; the slider underneath keeps its own value.
+    slider.setVisible (! nowModded);
+    const auto eff = processor->getEffectiveNormalised (paramId);
+    if (nowModded != modded || nowModded != customShown || eff != shownNormalised)
+    {
+        modded = nowModded;
+        customShown = nowModded;
+        shownNormalised = eff;
+        setReadout (modded ? param->convertFrom0to1 (eff) : (float) slider.getValue());
+        repaint();
+    }
+}
+
+juce::Point<float> LoamKnob::dotPosition (float normalised) const
+{
+    const auto area = dialBounds().toFloat();
+    const auto radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f - 5.0f;
+    const auto angle = juce::MathConstants<float>::pi * (1.25f + 1.5f * normalised);
+    return area.getCentre() + juce::Point<float> (std::sin (angle), -std::cos (angle)) * radius;
+}
+
+void LoamKnob::paint (juce::Graphics& g)
+{
+    if (! modded)
+        return;
+    const auto area = dialBounds();
+    getLookAndFeel().drawRotarySlider (g, area.getX(), area.getY(), area.getWidth(), area.getHeight(), shownNormalised,
+                                       juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, slider);
+}
+
+void LoamKnob::paintOverChildren (juce::Graphics& g)
+{
+    if (! modded)
+        return;
+    const auto b = processor->getModBinding (paramId);
+    for (const auto& [norm, colour] : { std::pair { b.red, modRed }, std::pair { b.green, modGreen } })
+    {
+        const auto dot = juce::Rectangle<float> (9.0f, 9.0f).withCentre (dotPosition (norm));
+        g.setColour (shadow);
+        g.fillEllipse (dot.translated (0.0f, 1.0f));
+        g.setColour (colour);
+        g.fillEllipse (dot);
+        g.setColour (panelRaised);
+        g.drawEllipse (dot, 1.5f);
+    }
+}
+
+void LoamKnob::mouseDown (const juce::MouseEvent& e)
+{
+    draggingDot = 0;
+    if (! modded)
+        return;
+    const auto b = processor->getModBinding (paramId);
+    const auto dRed = e.position.getDistanceFrom (dotPosition (b.red));
+    const auto dGreen = e.position.getDistanceFrom (dotPosition (b.green));
+    if (juce::jmin (dRed, dGreen) <= 9.0f)
+        draggingDot = dRed <= dGreen ? 1 : 2;
+}
+
+void LoamKnob::mouseDrag (const juce::MouseEvent& e)
+{
+    if (draggingDot == 0)
+        return;
+
+    const auto centre = dialBounds().toFloat().getCentre();
+    auto deg = juce::radiansToDegrees (std::atan2 (e.position.x - centre.x, centre.y - e.position.y));
+    if (deg > 135.0f)       deg = deg > 157.5f ? -135.0f : 135.0f;    // the gap at the bottom: snap to the nearer end
+    else if (deg < -135.0f) deg = deg < -157.5f ? 135.0f : -135.0f;
+
+    auto b = processor->getModBinding (paramId);
+    (draggingDot == 1 ? b.red : b.green) = juce::jlimit (0.0f, 1.0f, (deg + 135.0f) / 270.0f);
+    processor->setModBinding (paramId, b);
+    refreshMod();
+    repaint();
+}
+
+void LoamKnob::mouseUp (const juce::MouseEvent&)
+{
+    draggingDot = 0;
 }
 
 //==============================================================================
@@ -701,6 +848,9 @@ LoamEightSubEditor::LoamEightSubEditor (LoamEightSubProcessor& p)
 
     for (auto* k : { &tune, &sub, &cutoff, &resonance, &attack, &decay, &sustain, &release, &volume })
         addAndMakeVisible (*k);
+    for (auto* k : allKnobs())
+        k->attachMod (p);
+
     addAndMakeVisible (delayUnit);
     addAndMakeVisible (reverbUnit);
     addChildComponent (satUnit);
@@ -844,6 +994,15 @@ LoamEightSubEditor::~LoamEightSubEditor()
 }
 
 //==============================================================================
+std::vector<LoamKnob*> LoamEightSubEditor::allKnobs()
+{
+    std::vector<LoamKnob*> list { &tune, &sub, &cutoff, &resonance, &attack, &decay, &sustain, &release, &volume };
+    for (auto* unit : { &delayUnit, &reverbUnit, &satUnit, &distUnit })
+        for (auto& k : unit->getKnobs())
+            list.push_back (k.get());
+    return list;
+}
+
 juce::StringArray LoamEightSubEditor::presetNamesFor (int type) const
 {
     if (type == userType)
@@ -1021,6 +1180,8 @@ void LoamEightSubEditor::timerCallback()
         portaStrip.repaint();
     pitchWheel.refresh();
     modWheel.refresh();
+    for (auto* k : allKnobs())
+        k->refreshMod();
 
     if (const auto pedal = audioProcessor.sustainActive.load(); pedal != shownSustain)
     {

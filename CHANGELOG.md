@@ -13,6 +13,12 @@ release workflow refuses to publish a version that has no section here.
   button above the mod wheel steps its mode: **VIB** (vibrato, up to ±60
   cents at 5.5 Hz), **FILT** (opens the filter up to 4 octaves) or **CUST**.
   Mod mode and bend range are saved with user presets.
+- **CUST mod wheel: put any knob on the wheel.** In CUST every knob gets a
+  small button: click once to assign it (green), again to reverse it (red),
+  a third time to free it. An assigned knob shows a red and a green dot on its
+  ring — drag them to set where the wheel takes it, from red (wheel down) to
+  green (wheel up). One wheel can drive any number of knobs. Assignments are
+  saved with the project (VST) and with user presets.
 - Every C on the on-screen keyboard shows its octave (C3, C4, C5...).
 - **Effects pages**, flipped with the ‹ › arrows in the Effects title:
   **TIME** (Delay, Reverb) and the new **DRIVE** page with **Saturation**

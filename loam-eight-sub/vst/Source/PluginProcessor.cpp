@@ -99,12 +99,96 @@ namespace
     }
 
     constexpr auto presetTag = "LoamPreset";
+    const juce::Identifier modMapTag ("MODMAP"), modSlotTag ("SLOT");
 }
 
 LoamEightSubProcessor::LoamEightSubProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
+    jassert ((int) modSlots.size() == getModTargetIds().size());
+}
+
+//==============================================================================
+const juce::StringArray& LoamEightSubProcessor::getModTargetIds()
+{
+    // Every knob on the panel (not the glide slider or switches).
+    static const juce::StringArray ids { tuneId, subId, cutoffId, resonanceId, attackId, decayId, sustainId,
+                                         releaseId, volumeId, delayTimeId, delayFeedbackId, delayMixId,
+                                         reverbMixId, reverbSizeId, reverbToneId,
+                                         satDriveId, satToneId, satMixId, distDriveId, distToneId, distMixId };
+    return ids;
+}
+
+LoamEightSubProcessor::ModBinding LoamEightSubProcessor::getModBinding (const juce::String& paramId) const
+{
+    const auto index = getModTargetIds().indexOf (paramId);
+    if (index < 0)
+        return {};
+    const auto& slot = modSlots[(size_t) index];
+    return { slot.bound.load(), slot.reversed.load(), slot.red.load(), slot.green.load() };
+}
+
+void LoamEightSubProcessor::setModBinding (const juce::String& paramId, ModBinding b)
+{
+    const auto index = getModTargetIds().indexOf (paramId);
+    if (index < 0)
+        return;
+
+    auto& slot = modSlots[(size_t) index];
+    slot.red = b.red;
+    slot.green = b.green;
+    slot.reversed = b.reversed;
+    slot.bound = b.bound;
+
+    // Mirror into the state tree so the host's project (and copyState) keeps it.
+    auto map = apvts.state.getOrCreateChildWithName (modMapTag, nullptr);
+    auto existing = map.getChildWithProperty ("id", paramId);
+    if (! b.bound)
+    {
+        map.removeChild (existing, nullptr);
+        return;
+    }
+    if (! existing.isValid())
+    {
+        existing = juce::ValueTree (modSlotTag);
+        existing.setProperty ("id", paramId, nullptr);
+        map.appendChild (existing, nullptr);
+    }
+    existing.setProperty ("red", b.red, nullptr);
+    existing.setProperty ("green", b.green, nullptr);
+    existing.setProperty ("reversed", b.reversed, nullptr);
+}
+
+void LoamEightSubProcessor::loadModMapFromState()
+{
+    const auto map = apvts.state.getChildWithName (modMapTag);
+    const auto& ids = getModTargetIds();
+    for (int i = 0; i < ids.size(); ++i)
+    {
+        const auto slotTree = map.getChildWithProperty ("id", ids[i]);
+        auto& slot = modSlots[(size_t) i];
+        slot.red = (float) slotTree.getProperty ("red", 0.0f);
+        slot.green = (float) slotTree.getProperty ("green", 1.0f);
+        slot.reversed = (bool) slotTree.getProperty ("reversed", false);
+        slot.bound = slotTree.isValid();
+    }
+}
+
+bool LoamEightSubProcessor::isCustomModActive() const
+{
+    return (int) apvts.getRawParameterValue (modModeId)->load() == 2;
+}
+
+float LoamEightSubProcessor::getEffectiveNormalised (const juce::String& paramId) const
+{
+    auto* param = apvts.getParameter (paramId);
+    if (param == nullptr)
+        return 0.0f;
+    const auto b = getModBinding (paramId);
+    if (! b.bound || ! isCustomModActive())
+        return param->getValue();
+    return b.red + (b.green - b.red) * modWheel.load();
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout LoamEightSubProcessor::createParameterLayout()
@@ -215,10 +299,55 @@ void LoamEightSubProcessor::pullParameters()
 
     const auto mod = modWheel.load();
     const auto modMode = (int) get (modModeId);
+    if (modMode == 2)
+        applyCustomMod();
     engine.bendSemis = bendWheel.load() * (get (bendRangeId) + 1.0f);
     engine.vibratoSemis = modMode == 0 ? mod * maxVibratoSemis : 0.0f;
     if (modMode == 1)
         engine.cutoffHz = juce::jmin (12000.0f, engine.cutoffHz * std::exp2 (mod * maxFilterOctaves));
+}
+
+void LoamEightSubProcessor::applyCustomMod()
+{
+    // Override the engine values of the knobs the wheel drives. The parameters
+    // themselves are left alone, so host automation isn't flooded.
+    const auto mod = modWheel.load();
+    const auto& ids = getModTargetIds();
+    auto on = [this] (const char* id) { return apvts.getRawParameterValue (id)->load() > 0.5f; };
+
+    for (int i = 0; i < ids.size(); ++i)
+    {
+        const auto& slot = modSlots[(size_t) i];
+        if (! slot.bound.load())
+            continue;
+
+        const auto& id = ids[i];
+        auto* param = apvts.getParameter (id);
+        const auto red = slot.red.load(), green = slot.green.load();
+        const auto v = param->convertFrom0to1 (juce::jlimit (0.0f, 1.0f, red + (green - red) * mod));
+
+        if      (id == tuneId)          engine.tuneCents = v;
+        else if (id == subId)           engine.subMixPct = v;
+        else if (id == cutoffId)        engine.cutoffHz = v;
+        else if (id == resonanceId)     engine.resonanceQ = v;
+        else if (id == attackId)        engine.attackMs = v;
+        else if (id == decayId)         engine.decayMs = v;
+        else if (id == sustainId)       engine.sustainPct = v;
+        else if (id == releaseId)       engine.releaseMs = v;
+        else if (id == volumeId)        engine.volumePct = v;
+        else if (id == delayTimeId)     engine.delayTimeMs = v;
+        else if (id == delayFeedbackId) engine.delayFeedbackPct = on (delayOnId) ? v : 0.0f;
+        else if (id == delayMixId)      engine.delayMixPct = on (delayOnId) ? v : 0.0f;
+        else if (id == reverbMixId)     engine.reverbMixPct = on (reverbOnId) ? v : 0.0f;
+        else if (id == reverbSizeId)    engine.reverbSizeSec = v;
+        else if (id == reverbToneId)    engine.reverbToneHz = v;
+        else if (id == satDriveId)      engine.saturation.drivePct = v;
+        else if (id == satToneId)       engine.saturation.toneHz = v;
+        else if (id == satMixId)        engine.saturation.mixPct = v;
+        else if (id == distDriveId)     engine.distortion.drivePct = v;
+        else if (id == distToneId)      engine.distortion.toneHz = v;
+        else if (id == distMixId)       engine.distortion.mixPct = v;
+    }
 }
 
 void LoamEightSubProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -378,6 +507,10 @@ bool LoamEightSubProcessor::saveUserPreset (const juce::String& name)
             e->setAttribute ("value", param->convertFrom0to1 (param->getValue()));
         }
 
+    if (auto map = apvts.state.getChildWithName (modMapTag); map.isValid())
+        if (auto mapXml = map.createXml())
+            xml.addChildElement (mapXml.release());
+
     auto file = findUserPresetFile (name);
     if (file == juce::File())
     {
@@ -401,6 +534,16 @@ bool LoamEightSubProcessor::loadUserPreset (const juce::String& name)
         values.push_back ({ e->getStringAttribute ("id"), (float) e->getDoubleAttribute ("value") });
 
     applyPresetValues (values);
+
+    // Replace the wheel assignments with the preset's (none if it has none).
+    const auto* mapXml = xml->getChildByName (modMapTag.toString());
+    const auto map = mapXml != nullptr ? juce::ValueTree::fromXml (*mapXml) : juce::ValueTree();
+    for (const auto& id : getModTargetIds())
+    {
+        const auto slotTree = map.getChildWithProperty ("id", id);
+        setModBinding (id, { slotTree.isValid(), (bool) slotTree.getProperty ("reversed", false),
+                             (float) slotTree.getProperty ("red", 0.0f), (float) slotTree.getProperty ("green", 1.0f) });
+    }
     return true;
 }
 
@@ -443,6 +586,7 @@ void LoamEightSubProcessor::setStateInformation (const void* data, int sizeInByt
     }
 
     apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    loadModMapFromState();
 }
 
 // This creates new instances of the plugin.
