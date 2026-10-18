@@ -15,13 +15,13 @@ self-contained HTML file you can just open in a browser, and a VST3 plugin
   Composer: an eight-voice 808/909-style drum machine with a 16-step sequencer,
   all synthesised.
   [Play it in your browser](https://vox4vulpes.github.io/loam-daboom/) ·
-  VST3 coming next
+  [Releases](https://github.com/vox4vulpes/loam-daboom/releases)
 
 - [**Loam Elf-cHarmor**](https://github.com/vox4vulpes/loam-elf-charmor) — 小鷺 ·
   Additive Synthesizer: up to 256 harmonics per voice with morphing timbres,
   pluck, a spectral filter and unison.
   [Play it in your browser](https://vox4vulpes.github.io/loam-elf-charmor/) ·
-  VST3 coming next
+  [Releases](https://github.com/vox4vulpes/loam-elf-charmor/releases)
 
 Each synth lives in its own repository with its own versions and releases;
 this one gathers them as git submodules (clone with `--recurse-submodules`)

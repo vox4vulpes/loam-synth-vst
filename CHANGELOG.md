@@ -3,27 +3,28 @@
 Each release's notes on GitHub start with its section from this file — the
 release workflow refuses to publish a version that has no section here.
 
-## [1.4.1]
+## [1.5.0]
+
+### Added
+- **Loam DaBoom 1.0.0** (new) — 小鷺 · Rhythm Composer, an 808/909-style drum
+  machine: eight synthesised voices, a 16-step sequencer that follows your
+  DAW's transport, your own kits and a pattern library. VST3 and standalone,
+  sounding the same as the web version. See its
+  [changelog](https://github.com/vox4vulpes/loam-daboom/blob/main/CHANGELOG.md).
+- **Loam Elf-cHarmor 1.0.0** (new) — 小鷺 · Additive Synthesizer: up to 256
+  harmonics per voice, morphing timbres, a spectral filter, prism, phaser,
+  harmonizer and blur, a mod matrix with LFO and envelope graphs, pictures and
+  resynthesised sounds as harmonics, and an effects page. VST3 and standalone.
+  See its [changelog](https://github.com/vox4vulpes/loam-elf-charmor/blob/main/CHANGELOG.md).
 
 ### Changed
-- **Each synth now has its own repository and releases:**
-  [Loam Eight Sub](https://github.com/vox4vulpes/loam-eight-sub) and
-  [Loam DaBoom](https://github.com/vox4vulpes/loam-daboom) (and since then
-  [Loam Elf-cHarmor](https://github.com/vox4vulpes/loam-elf-charmor)), each with its own
-  version, changelog, installer and web page. This repository gathers them
-  as submodules and ships the bundle: the bundle zips and the bundle
-  installer. Single-synth downloads moved to the synths' own releases.
-
-### Included
 - **Loam Eight Sub 1.4.1** — the little egret signature, a browser-tab icon,
-  knob highlights at 12 o'clock, and the VST DELAY plate no longer covering
-  its switch. See its [changelog](https://github.com/vox4vulpes/loam-eight-sub/blob/main/CHANGELOG.md).
-- **Loam DaBoom** (new) — 小鷺 · Rhythm Composer, an 808/909-style drum
-  machine with your own kits and a pattern library. See its
-  [changelog](https://github.com/vox4vulpes/loam-daboom/blob/main/CHANGELOG.md).
-- **Loam Elf-cHarmor** (new) — 小鷺 · Additive Synthesizer: up to 256
-  harmonics per voice, morphing timbres, pluck, a spectral filter and unison.
-  See its [changelog](https://github.com/vox4vulpes/loam-elf-charmor/blob/main/CHANGELOG.md).
+  knob highlights at 12 o'clock, and the VST DELAY plate no longer covering its
+  switch. See its [changelog](https://github.com/vox4vulpes/loam-eight-sub/blob/main/CHANGELOG.md).
+- **Each synth now has its own repository and releases**, with its own
+  version, changelog, installer and web page. This repository gathers them as
+  submodules and ships the bundle: the bundle zips and the bundle installer.
+  Single-synth downloads are in the synths' own releases.
 
 ## [1.4.0]
 
