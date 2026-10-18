@@ -5,30 +5,21 @@ release workflow refuses to publish a version that has no section here.
 
 ## [1.4.1]
 
-### Added
-- **Loam DaBoom** (web): 小鷺 · Rhythm Composer, an eight-voice drum machine
-  in the spirit of the 808/909 — kick, snare, clap, closed and open hats, tom,
-  rim and cowbell, all synthesised — with a 16-step sequencer (accents, swing,
-  patterns A–D), pads, computer-keyboard and MIDI play, 808 / 909 / Lo-Fi
-  kits and a master section. The VST3 version follows.
-- **DaBoom: your own kits.** Each voice's name above its pad picks which
-  version to use (e.g. KICK 909 with SNARE Lo-Fi); tweak, name and **SAVE**
-  it as your kit, load it from the KIT menu, **DELETE** it when done.
-- **DaBoom: pattern library.** Load a factory groove (House, Boom Bap,
-  Breakbeat, Trap, Techno, Garage, Lazy Groove, Half-Time) or one of yours
-  into the current pattern; **SAVE** the current pattern under a name.
-  Grooves are kept separately from kits, so any groove plays on any kit.
-- Loam Eight Sub gets the same signature: 小鷺 (kosagi, the little egret)
-  in its subtitle and the egret beside it — click it.
-- Browser-tab icons: DaBoom shows a 3×3 panel of drum pads, Eight Sub its
-  scope with the four waves. DaBoom's app icon is ready for the VST3.
+### Changed
+- **Each synth now has its own repository and releases:**
+  [Loam Eight Sub](https://github.com/vox4vulpes/loam-eight-sub) and
+  [Loam DaBoom](https://github.com/vox4vulpes/loam-daboom), each with its own
+  version, changelog, installer and web page. This repository gathers them
+  as submodules and ships the bundle: the bundle zips and the bundle
+  installer. Single-synth downloads moved to the synths' own releases.
 
-### Fixed
-- Knob caps catch the light straight from the top, at 12 o'clock — the
-  knob's 50% position — and on the web the dark ring around each knob now
-  matches its travel, with the gap at the bottom (it was turned 90°).
-- VST: the sliding DELAY plate no longer covers the left end of the Delay
-  on/off switch.
+### Included
+- **Loam Eight Sub 1.4.1** — the little egret signature, a browser-tab icon,
+  knob highlights at 12 o'clock, and the VST DELAY plate no longer covering
+  its switch. See its [changelog](https://github.com/vox4vulpes/loam-eight-sub/blob/main/CHANGELOG.md).
+- **Loam DaBoom** (new) — 小鷺 · Rhythm Composer, an 808/909-style drum
+  machine with your own kits and a pattern library. See its
+  [changelog](https://github.com/vox4vulpes/loam-daboom/blob/main/CHANGELOG.md).
 
 ## [1.4.0]
 

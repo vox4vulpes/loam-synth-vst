@@ -1,0 +1,6 @@
+[submodule "loam-eight-sub"]
+	path = loam-eight-sub
+	url = https://github.com/vox4vulpes/loam-eight-sub.git
+[submodule "loam-daboom"]
+	path = loam-daboom
+	url = https://github.com/vox4vulpes/loam-daboom.git

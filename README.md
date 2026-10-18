@@ -6,35 +6,42 @@ self-contained HTML file you can just open in a browser, and a VST3 plugin
 
 ## Synths
 
-- [**Loam Eight Sub**](loam-eight-sub/) — 8-voice subtractive synth with
-  oscillator, filter, ADSR envelope, delay, and reverb.
-  [Play it in your browser](https://vox4vulpes.github.io/loam-synth-vst/loam-eight-sub/) ·
-  [VST3 plugin](loam-eight-sub/#vst3-plugin)
+- [**Loam Eight Sub**](https://github.com/vox4vulpes/loam-eight-sub) — 8-voice
+  subtractive synth with oscillator, filter, ADSR envelope, drive, delay, and reverb.
+  [Play it in your browser](https://vox4vulpes.github.io/loam-eight-sub/) ·
+  [Releases](https://github.com/vox4vulpes/loam-eight-sub/releases)
 
-- [**Loam DaBoom**](loam-daboom/) — 小鷺 · Rhythm Composer: an eight-voice
-  808/909-style drum machine with a 16-step sequencer, all synthesised.
-  [Play it in your browser](https://vox4vulpes.github.io/loam-synth-vst/loam-daboom/) ·
+- [**Loam DaBoom**](https://github.com/vox4vulpes/loam-daboom) — 小鷺 · Rhythm
+  Composer: an eight-voice 808/909-style drum machine with a 16-step sequencer,
+  all synthesised.
+  [Play it in your browser](https://vox4vulpes.github.io/loam-daboom/) ·
   VST3 coming next
+
+Each synth lives in its own repository with its own versions and releases;
+this one gathers them as git submodules (clone with `--recurse-submodules`)
+and ships them together as the bundle.
 
 More to come.
 
 ## Download
 
-Grab the latest build from [Releases](../../releases/latest):
-
-`1Bundle-Loam-Synth-<version>-<platform>.zip` has every synth, or pick a single
-`Loam-Synth-<Synth>-<version>-<platform>.zip`. Each holds the VST3 plugin and a standalone app.
+Grab the latest bundle from [Releases](../../releases/latest):
+`1Bundle-Loam-Synth-<version>-<platform>.zip` has every synth, each as a VST3
+plugin and a standalone app. Single synths are in their own repositories'
+releases (links above).
 
 On Windows, `1Bundle-Loam-Synth-Setup-<version>.exe` installs every synth into
-`Common Files\VST3\Loam` and upgrades an older install in place; each single
-synth's Windows zip carries its own installer that shares the same folder.
+`Common Files\VST3\Loam` and upgrades an older install in place; the single
+synths' installers share the same folder.
 
 What changed in each version is in [CHANGELOG.md](CHANGELOG.md) and at the top
 of every release's notes.
 
-To cut a new release, add a `## [x.y.z]` section to `CHANGELOG.md`, then push a version tag (`git tag v1.1.0 && git push origin v1.1.0`);
-the [Release workflow](.github/workflows/release.yml) builds every `*/vst/` synth
-on Windows, macOS, and Linux and publishes the zips and the installer.
+To cut a bundle release, move the submodules to the synth versions to ship
+(`git submodule update --remote`, then commit), add a `## [x.y.z]` section to
+`CHANGELOG.md` and push a version tag (`git tag v1.4.1 && git push origin v1.4.1`);
+the [Release workflow](.github/workflows/release.yml) builds every synth with a
+`vst/` folder on Windows, macOS, and Linux and publishes the bundle zips and installer.
 
 
 ## License

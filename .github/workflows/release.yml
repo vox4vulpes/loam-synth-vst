@@ -1,9 +1,9 @@
 name: Release
 
-# Push a tag like v1.0.0 to build every synth in the bundle (each */vst/
-# folder) on all three platforms and publish a GitHub release with one zip
-# per synth, a Loam-Synth-Bundle zip holding all of them, and a Windows
-# installer. Run it by hand (workflow_dispatch) to build everything as
+# Push a tag like v1.0.0 to build every synth in the bundle (each submodule
+# with a vst/ folder) on all three platforms and publish a GitHub release with
+# a Loam-Synth-Bundle zip per platform and a Windows installer. Each synth also
+# has its own repository and releases; this one only ships them together. Run it by hand (workflow_dispatch) to build everything as
 # workflow artifacts without publishing, e.g. to try the installer.
 on:
   push:
@@ -39,6 +39,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install Linux JUCE dependencies
         if: runner.os == 'Linux'
@@ -78,27 +80,12 @@ jobs:
             # MSVC drops import libs next to the .vst3; they're build leftovers.
             find "stage/$synth/VST3" -maxdepth 1 \( -name '*.lib' -o -name '*.exp' \) -delete
             if [ -d "$artefacts/Standalone" ]; then cp -R "$artefacts/Standalone" "stage/$synth/"; fi
-            cp "$src/LICENSE" "stage/$synth/LICENSE.txt"
-
-            # loam-eight-sub -> Loam-Synth-Eight-Sub. Bundle files start with
-            # "1Bundle" so GitHub's alphabetical asset list shows them first.
-            pretty="Loam-Synth-$(echo "${synth#loam-}" | perl -pe 's/(^|-)(\w)/$1\u$2/g')"
-
-            # On Windows each synth's zip also carries its own installer.
-            if [ "$RUNNER_OS" = "Windows" ]; then
-              name=$(echo "$synth" | perl -pe 's/(^|-)(\w)/$1\u$2/g; s/-/ /g')   # Loam Eight Sub
-              mkdir -p "solo/$synth" && cp -R "stage/$synth" "solo/$synth/"
-              bash installer/windows/build-installer.sh "$version" "solo/$synth" "stage/$synth" \
-                "$name" "${name// /}" "$pretty-Setup-$version"
-            fi
-
-            (cd stage && cmake -E tar cf "../dist/$pretty-$version-$platform.zip" --format=zip "$synth")
+            cp LICENSE "stage/$synth/LICENSE.txt"
             echo "::endgroup::"
           done
 
+          # Bundle files start with "1Bundle" so they list first, as before.
           mkdir -p bundle && cp -R stage bundle/Loam-Synth-Bundle
-          # The bundle has its own installer; drop the per-synth ones from its zip.
-          find bundle -name '*-Setup-*.exe' -delete
           (cd bundle && cmake -E tar cf "../dist/1Bundle-Loam-Synth-$version-$platform.zip" --format=zip Loam-Synth-Bundle)
           ls -l dist
 
@@ -151,14 +138,16 @@ jobs:
 
           - **`1Bundle-Loam-Synth-Setup-<version>.exe`** — Windows installer for every synth (recommended on Windows)
           - **`1Bundle-Loam-Synth-<version>-<platform>.zip`** — every Loam synth in one archive
-          - **`Loam-Synth-<Synth>-<version>-<platform>.zip`** — a single synth (the Windows zip includes its own installer)
 
           Each archive holds the VST3 plugin and a standalone app for each synth.
+          Single synths have their own releases:
+          [Loam Eight Sub](https://github.com/vox4vulpes/loam-eight-sub/releases/latest) ·
+          [Loam DaBoom](https://github.com/vox4vulpes/loam-daboom/releases/latest)
 
           ## Install
 
-          **Windows:** run the installer — the bundle one, or the one inside a single
-          synth's zip. It puts the plugins in `C:\Program Files\Common Files\VST3\Loam`,
+          **Windows:** run the installer — the bundle one, or a single synth's from its
+          own release. It puts the plugins in `C:\Program Files\Common Files\VST3\Loam`,
           adds the standalone apps to the Start menu, and upgrades an existing install
           in place when you run a newer version. The bundle and single-synth installers
           share that folder, so installing both never shows a plugin twice. Windows SmartScreen may warn because the installer
