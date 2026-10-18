@@ -8,7 +8,8 @@ release workflow refuses to publish a version that has no section here.
 ### Changed
 - **Each synth now has its own repository and releases:**
   [Loam Eight Sub](https://github.com/vox4vulpes/loam-eight-sub) and
-  [Loam DaBoom](https://github.com/vox4vulpes/loam-daboom), each with its own
+  [Loam DaBoom](https://github.com/vox4vulpes/loam-daboom) (and since then
+  [Loam Elf-cHarmor](https://github.com/vox4vulpes/loam-elf-charmor)), each with its own
   version, changelog, installer and web page. This repository gathers them
   as submodules and ships the bundle: the bundle zips and the bundle
   installer. Single-synth downloads moved to the synths' own releases.
@@ -20,6 +21,9 @@ release workflow refuses to publish a version that has no section here.
 - **Loam DaBoom** (new) — 小鷺 · Rhythm Composer, an 808/909-style drum
   machine with your own kits and a pattern library. See its
   [changelog](https://github.com/vox4vulpes/loam-daboom/blob/main/CHANGELOG.md).
+- **Loam Elf-cHarmor** (new) — 小鷺 · Additive Synthesizer: up to 256
+  harmonics per voice, morphing timbres, pluck, a spectral filter and unison.
+  See its [changelog](https://github.com/vox4vulpes/loam-elf-charmor/blob/main/CHANGELOG.md).
 
 ## [1.4.0]
 

@@ -4,3 +4,6 @@
 [submodule "loam-daboom"]
 	path = loam-daboom
 	url = https://github.com/vox4vulpes/loam-daboom.git
+[submodule "loam-elf-charmor"]
+	path = loam-elf-charmor
+	url = https://github.com/vox4vulpes/loam-elf-charmor.git
